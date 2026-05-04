@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+
+# IDE
+.vscode/
+
+# Claude
+.claude/
+
+# 数据库（敏感数据）
+*.db
+*.sqlite3
+
+# 用户上传文件
+uploads/
+export_users/
+
+# 环境变量
+.env
