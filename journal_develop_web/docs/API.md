@@ -462,7 +462,7 @@
 | page_size | int | 10 | 每页条数 (最大 50) |
 | mood | str | - | 按心情筛选 |
 | tag | str | - | 按标签筛选 |
-| keyword | str | - | 关键词搜索 |
+| keyword | str | - | 关键词搜索（正文/标签/昵称/AI摘要/陪伴语/心情emoji或中文心情词），最多50字 |
 | client_id | str | - | 客户端标识 (用于点亮状态) |
 
 **响应 200**:
@@ -489,6 +489,12 @@
   "page_size": 10
 }
 ```
+
+**搜索规则**：
+- 匹配字段：日记正文 `content`、标签 `tags`、AI 摘要 `ai_summary`、AI 陪伴语 `ai_message`、作者昵称 `users.nickname`、心情 `mood`
+- 中文心情词映射：开心/高兴/快乐->😊，疲惫/累->😫，难过/伤心->😢，生气/愤怒->😡，幸福/幸运->🥰
+- 搜索范围仅限公开普通日记（排除私密日记、树洞、胶囊）
+- keyword 为空时不启用搜索，超 50 字返回 400
 
 ### POST /api/public/diaries/{id}/like
 

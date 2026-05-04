@@ -218,7 +218,7 @@
             <!-- 搜索框 -->
             <div id="discoverSearchArea" class="relative">
                 <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300"></i>
-                <input id="discoverSearch" type="text" placeholder="搜索日记、心情或关键词" autocomplete="off"
+                <input id="discoverSearch" type="text" placeholder="搜索日记、标签、作者或心情" autocomplete="off"
                        class="w-full pl-10 pr-4 py-3 rounded-2xl bg-white text-sm text-gray-700 placeholder-gray-300 border-0 shadow-sm focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all">
             </div>
             <!-- 心情筛选 -->
@@ -259,8 +259,8 @@
             <!-- 空状态 -->
             <div id="discoverEmpty" class="hidden flex flex-col items-center justify-center py-16">
                 <i data-lucide="compass" class="w-16 h-16 text-gray-200 mb-4" style="stroke-width:1.5"></i>
-                <p class="text-sm text-gray-400 mb-2">还没有公开日记</p>
-                <p class="text-xs text-gray-300 mb-4">成为第一个分享的人吧</p>
+                <p class="disc-empty-title text-sm text-gray-400 mb-2">还没有公开日记</p>
+                <p class="disc-empty-sub text-xs text-gray-300 mb-4">成为第一个分享的人吧</p>
                 <button onclick="openPublicCompose()" class="px-5 py-2.5 bg-emerald-400 text-white rounded-2xl text-sm font-medium active:scale-95 transition-all shadow-sm">
                     去写一篇公开日记
                 </button>
@@ -2822,9 +2822,18 @@
                 discHasMore = data.has_more;
                 if (discPage === 1 && data.items.length === 0) {
                     discoverEmpty.classList.remove('hidden');
-                    // 更新空状态文字
-                    const emptyP = discoverEmpty.querySelector('p');
-                    if (emptyP && discFeedMode === 'following') emptyP.textContent = '关注的人还没有公开日记';
+                    const emptyTitle = discoverEmpty.querySelector('.disc-empty-title');
+                    const emptySub = discoverEmpty.querySelector('.disc-empty-sub');
+                    if (discKeyword) {
+                        if (emptyTitle) emptyTitle.textContent = '没有找到相关公开日记';
+                        if (emptySub) emptySub.textContent = '换个关键词、心情或标签试试';
+                    } else if (discFeedMode === 'following') {
+                        if (emptyTitle) emptyTitle.textContent = '关注的人还没有公开日记';
+                        if (emptySub) emptySub.textContent = '去发现广场看看吧';
+                    } else {
+                        if (emptyTitle) emptyTitle.textContent = '还没有公开日记';
+                        if (emptySub) emptySub.textContent = '成为第一个分享的人吧';
+                    }
                 } else {
                     if (discFeedMode === 'following') {
                         renderDiscoverFollowingItems(data.items, discPage > 1);
@@ -3003,7 +3012,14 @@
             discSearchTimer = setTimeout(() => {
                 discKeyword = discoverSearch.value.trim();
                 loadDiscover();
-            }, 400);
+            }, 300);
+        });
+        discoverSearch.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                clearTimeout(discSearchTimer);
+                discKeyword = discoverSearch.value.trim();
+                loadDiscover();
+            }
         });
 
         // 加载更多

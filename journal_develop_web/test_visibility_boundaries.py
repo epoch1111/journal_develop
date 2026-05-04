@@ -55,7 +55,7 @@ token = login("echo_1")
 
 # 创建一篇日记
 _, result = rest("POST", "/api/save", token=token, body={
-    "mood": "😊", "content": "一篇普通的日记", "is_public": True
+    "mood": "😊", "content": "一篇普通的日记", "is_public": False
 })
 diary_id = result.get("id")
 test("1a: 创建日记成功", diary_id is not None)
@@ -229,8 +229,15 @@ if profile:
 # Test 11: 公开广场详情 GET /api/public/diaries/{id} 只返回 diary 类型
 # ============================================================
 print("\n=== Test 11: 公开广场详情过滤 ===")
-if diary_id:
-    code, _ = rest("GET", f"/api/public/diaries/{diary_id}")
+# 创建一篇公开日记用于测试广场访问
+_, pub_result = rest("POST", "/api/save", token=token, body={
+    "mood": "😊", "content": "一篇公开日记用于广场测试", "is_public": True
+})
+pub_diary_id = pub_result.get("id")
+test("11-prea: 公开日记创建成功", pub_diary_id is not None)
+
+if pub_diary_id:
+    code, _ = rest("GET", f"/api/public/diaries/{pub_diary_id}")
     # diary 类型且 is_public=1 应该在广场可访问
     test(f"11a: 公开日记可广场访问 (code={code})", code == 200)
 

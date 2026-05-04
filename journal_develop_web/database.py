@@ -5,6 +5,15 @@ from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "echo.db")
 
+# 心情关键词 → emoji 映射（用于发现页搜索）
+MOOD_KEYWORD_MAP = {
+    "开心": "😊", "高兴": "😊", "快乐": "😊",
+    "疲惫": "😫", "累": "😫",
+    "难过": "😢", "伤心": "😢",
+    "生气": "😡", "愤怒": "😡",
+    "幸福": "🥰", "幸运": "🥰",
+}
+
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -319,7 +328,7 @@ def save_diary_to_db(mood: str, content: str, ai_summary: str, ai_message: str, 
 def get_all_diaries_from_db(date: str = None, user_id: int = None):
     """获取日记列表（不含树洞），可选按日期过滤、按用户过滤"""
     conn = get_connection()
-    base_where = "WHERE content_type != 'treehole' AND is_public = 0"
+    base_where = "WHERE content_type != 'treehole' AND (content_type != 'diary' OR is_public = 0)"
     if date and user_id is not None:
         rows = conn.execute(
             f"SELECT * FROM diaries {base_where} AND created_at LIKE ? AND user_id = ? ORDER BY created_at DESC",
@@ -399,7 +408,7 @@ def increment_hug_count(diary_id: int) -> int:
 def get_diaries_by_date(target_date: str, user_id: int = None):
     """获取指定日期的所有日记（用于日历下钻），可选按用户过滤，排除树洞"""
     conn = get_connection()
-    base_where = "WHERE content_type != 'treehole' AND is_public = 0"
+    base_where = "WHERE content_type != 'treehole' AND (content_type != 'diary' OR is_public = 0)"
     if user_id is not None:
         rows = conn.execute(
             f"SELECT * FROM diaries {base_where} AND created_at LIKE ? AND user_id = ? ORDER BY created_at DESC",
@@ -501,21 +510,52 @@ def _build_public_diary_where():
     return "WHERE content_type = 'diary' AND is_public = 1 AND (unlock_date IS NULL OR unlock_date = '')"
 
 
+def _build_search_clause(keyword):
+    """根据 keyword 构建搜索 WHERE 子句和参数。
+    返回 (clause, params)，clause 为空字符串表示无搜索条件。
+    匹配: 正文/标签/AI摘要/AI陪伴语/作者昵称/心情emoji或中文心情词。
+    需要调用方已 JOIN users 表（别名为 u）。"""
+    keyword = (keyword or "").strip()
+    if not keyword:
+        return "", []
+    like_val = f"%{keyword}%"
+    params = [like_val, like_val, like_val, like_val, like_val]
+    clause = "AND (d.content LIKE ? OR d.tags LIKE ? OR d.ai_summary LIKE ? OR d.ai_message LIKE ? OR u.nickname LIKE ?"
+    # 心情关键词 → emoji 映射
+    mood_key = MOOD_KEYWORD_MAP.get(keyword, None)
+    # 如果 keyword 本身是 emoji 也在 mood 中搜索
+    if mood_key is None and len(keyword) <= 2:
+        import re
+        if re.search(r'[\U0001F300-\U0001F9FF]', keyword):
+            mood_key = keyword
+    if mood_key:
+        clause += " OR d.mood = ?"
+        params.append(mood_key)
+    clause += ")"
+    return clause, params
+
+
 def count_public_diaries(mood=None, tag=None, keyword=None):
     """统计公开日记总数"""
     conn = get_connection()
     where = _build_public_diary_where()
-    params = []
+    filter_params = []
+    # 是否需要 JOIN users 表
+    kw_clause, kw_params = _build_search_clause(keyword)
+    need_join = bool(kw_clause)
     if mood:
-        where += " AND mood = ?"
-        params.append(mood)
+        where += " AND d.mood = ?" if need_join else " AND mood = ?"
+        filter_params.append(mood)
     if tag:
-        where += " AND tags LIKE ?"
-        params.append(f"%{tag}%")
-    if keyword:
-        where += " AND content LIKE ?"
-        params.append(f"%{keyword}%")
-    row = conn.execute(f"SELECT COUNT(*) as cnt FROM diaries {where}", params).fetchone()
+        where += " AND d.tags LIKE ?" if need_join else " AND tags LIKE ?"
+        filter_params.append(f"%{tag}%")
+    if need_join:
+        sql = f"SELECT COUNT(*) as cnt FROM diaries d LEFT JOIN users u ON d.user_id = u.id {where} {kw_clause}"
+        all_params = list(kw_params) + filter_params
+    else:
+        sql = f"SELECT COUNT(*) as cnt FROM diaries {where}"
+        all_params = filter_params
+    row = conn.execute(sql, all_params if all_params else []).fetchone()
     conn.close()
     return row["cnt"] if row else 0
 
@@ -525,20 +565,22 @@ def list_public_diaries(page=1, page_size=10, mood=None, tag=None, keyword=None)
     conn = get_connection()
     where = _build_public_diary_where()
     params = []
+    kw_clause, kw_params = _build_search_clause(keyword)
+    need_join = bool(kw_clause)
     if mood:
-        where += " AND mood = ?"
+        where += " AND d.mood = ?" if need_join else " AND mood = ?"
         params.append(mood)
     if tag:
-        where += " AND tags LIKE ?"
+        where += " AND d.tags LIKE ?" if need_join else " AND tags LIKE ?"
         params.append(f"%{tag}%")
-    if keyword:
-        where += " AND content LIKE ?"
-        params.append(f"%{keyword}%")
     offset = (page - 1) * page_size
-    rows = conn.execute(
-        f"SELECT * FROM diaries {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        params + [page_size, offset]
-    ).fetchall()
+    if need_join:
+        sql = f"SELECT d.* FROM diaries d LEFT JOIN users u ON d.user_id = u.id {where} {kw_clause} ORDER BY d.created_at DESC LIMIT ? OFFSET ?"
+        all_params = list(kw_params) + list(params) + [page_size, offset]
+    else:
+        sql = f"SELECT * FROM diaries {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        all_params = list(params) + [page_size, offset]
+    rows = conn.execute(sql, all_params).fetchall()
     conn.close()
     return [dict(row) for row in rows]
 

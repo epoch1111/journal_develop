@@ -1,6 +1,6 @@
 """公开日记广场路由"""
 
-from fastapi import APIRouter, Query, Body, Depends
+from fastapi import APIRouter, Query, Body, Depends, HTTPException
 
 from models.schemas import PublicDiaryLikeRequest, PublicDiaryCommentRequest
 from services.public_diary_service import (
@@ -28,7 +28,15 @@ async def public_diaries(
     client_id: str = Query(None),
     current_user=Depends(get_optional_user),
 ):
-    """公开日记列表（分页+筛选）"""
+    """公开日记列表（分页+筛选+搜索）。
+    搜索范围：日记正文/标签/AI摘要/AI陪伴语/作者昵称/心情emoji或中文心情词。"""
+    # keyword trim，空或全空格视为不搜索；超长返回 400
+    if keyword is not None:
+        keyword = keyword.strip()
+        if not keyword:
+            keyword = None
+        elif len(keyword) > 50:
+            raise HTTPException(status_code=400, detail="搜索关键词过长，最多50字")
     viewer_id = current_user["id"] if current_user else None
     return list_public_diaries(
         page=page, page_size=page_size,

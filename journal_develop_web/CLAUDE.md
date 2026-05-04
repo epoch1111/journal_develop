@@ -243,7 +243,7 @@ E:\Anaconda\envs\journal_develop\python.exe -m pip install bcrypt==4.0.1
 ### 公开日记广场
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/public/diaries` | 无 | 分页列表（支持 mood/tag/keyword/client_id 筛选） |
+| GET | `/api/public/diaries` | 无 | 分页列表（支持 mood/tag/keyword/client_id 筛选，keyword 搜索正文/标签/昵称/AI字段/心情词） |
 | GET | `/api/public/diaries/{id}` | 无 | 公开日记详情（含评论和 image_urls） |
 | POST | `/api/public/diaries/{id}/like` | 无 | 点亮（client_id 去重） |
 | DELETE | `/api/public/diaries/{id}/like` | 无 | 取消点亮 |
