@@ -319,7 +319,7 @@ def save_diary_to_db(mood: str, content: str, ai_summary: str, ai_message: str, 
 def get_all_diaries_from_db(date: str = None, user_id: int = None):
     """获取日记列表（不含树洞），可选按日期过滤、按用户过滤"""
     conn = get_connection()
-    base_where = "WHERE content_type != 'treehole'"
+    base_where = "WHERE content_type != 'treehole' AND is_public = 0"
     if date and user_id is not None:
         rows = conn.execute(
             f"SELECT * FROM diaries {base_where} AND created_at LIKE ? AND user_id = ? ORDER BY created_at DESC",
@@ -399,7 +399,7 @@ def increment_hug_count(diary_id: int) -> int:
 def get_diaries_by_date(target_date: str, user_id: int = None):
     """获取指定日期的所有日记（用于日历下钻），可选按用户过滤，排除树洞"""
     conn = get_connection()
-    base_where = "WHERE content_type != 'treehole'"
+    base_where = "WHERE content_type != 'treehole' AND is_public = 0"
     if user_id is not None:
         rows = conn.execute(
             f"SELECT * FROM diaries {base_where} AND created_at LIKE ? AND user_id = ? ORDER BY created_at DESC",
