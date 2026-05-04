@@ -4919,7 +4919,7 @@
                 const mood = calendarData[dateKey];
                 if (mood) {
                     const info = MOOD_MAP[mood] || MOOD_MAP['😊'];
-                    html += `<div class="aspect-square flex items-center justify-center rounded-lg text-lg select-none" style="background:${info.accent}">${mood}</div>`;
+                    html += `<div class="aspect-square flex items-center justify-center rounded-lg text-lg select-none cursor-pointer hover:opacity-80 active:scale-95 transition-all" style="background:${info.accent}" onclick="openDailyModal('${dateKey}')">${mood}</div>`;
                 } else {
                     html += `<span class="aspect-square flex items-center justify-center text-[11px] text-gray-300 select-none">${day}</span>`;
                 }
