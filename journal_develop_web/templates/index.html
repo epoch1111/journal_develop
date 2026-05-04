@@ -3059,11 +3059,11 @@
                 let html = `
                 <div class="disc-comment-item ${isChild ? 'ml-8 pl-3 border-l-2 border-emerald-100' : ''}" data-comment-id="${c.id || 0}" data-user-id="${userId}" data-author-name="${escapeHtml(authorName)}">
                     <div class="flex items-start gap-2.5">
-                        <span class="${isChild ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm'} rounded-full bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center shrink-0 shadow-sm select-none">${authorAvatar}</span>
+                        <button class="disc-comment-author-btn ${isChild ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm'} rounded-full bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center shrink-0 shadow-sm select-none hover:scale-110 active:scale-95 transition-transform" data-user-id="${userId}">${authorAvatar}</button>
                         <div class="${isChild ? 'bg-gray-50/70' : 'bg-gray-50'} rounded-2xl rounded-tl-sm px-4 py-3 flex-1">
                             <div class="flex items-center justify-between mb-1">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-[11px] font-medium text-gray-500">${authorName}</span>
+                                    <button class="disc-comment-author-btn text-[11px] font-medium text-gray-500 hover:text-emerald-500 transition-colors" data-user-id="${userId}">${authorName}</button>
                                     ${replyToName ? `<span class="text-[10px] text-emerald-400">回复 ${replyToName}</span>` : ''}
                                     <span class="text-[10px] text-gray-300">· ${formatDate(c.created_at)}</span>
                                 </div>
@@ -3135,11 +3135,13 @@
                 ${commentHtml ? `<div class="space-y-3 mb-4">${commentHtml}</div>` : '<p class="text-center text-gray-300 text-sm py-4">还没有评论，来写第一条吧</p>'}
             `;
 
-            // 详情中作者按钮
-            const discDetailAuthorBtn = discDetailContent.querySelector('.disc-detail-author-btn');
-            if (discDetailAuthorBtn) discDetailAuthorBtn.addEventListener('click', () => {
-                const uid = discDetailAuthorBtn.dataset.userId;
-                if (uid) openAuthorProfile(parseInt(uid));
+            // 详情中作者按钮 + 评论人按钮（事件委托）
+            discDetailContent.addEventListener('click', (e) => {
+                const authorBtn = e.target.closest('.disc-detail-author-btn, .disc-comment-author-btn');
+                if (authorBtn) {
+                    const uid = authorBtn.dataset.userId;
+                    if (uid && parseInt(uid) > 0) openAuthorProfile(parseInt(uid));
+                }
             });
 
             // 详情中点亮按钮
