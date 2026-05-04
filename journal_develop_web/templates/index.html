@@ -261,7 +261,7 @@
                 <i data-lucide="compass" class="w-16 h-16 text-gray-200 mb-4" style="stroke-width:1.5"></i>
                 <p class="text-sm text-gray-400 mb-2">还没有公开日记</p>
                 <p class="text-xs text-gray-300 mb-4">成为第一个分享的人吧</p>
-                <button onclick="switchToWritePublic()" class="px-5 py-2.5 bg-emerald-400 text-white rounded-2xl text-sm font-medium active:scale-95 transition-all shadow-sm">
+                <button onclick="openPublicCompose()" class="px-5 py-2.5 bg-emerald-400 text-white rounded-2xl text-sm font-medium active:scale-95 transition-all shadow-sm">
                     去写一篇公开日记
                 </button>
             </div>
@@ -492,6 +492,16 @@
             <i data-lucide="send" class="w-6 h-6"></i>
         </button>
 
+        <!-- ===== 发现发布按钮 ===== -->
+        <button id="btnDiscoverCompose"
+                class="hidden absolute bottom-24 right-5 w-14 h-14 rounded-full
+                       bg-gradient-to-br from-emerald-400 to-teal-500 text-white
+                       shadow-lg shadow-emerald-300/40 flex items-center justify-center
+                       hover:shadow-xl hover:shadow-emerald-300/50 active:scale-95 transition-transform z-20 select-none"
+                onclick="openPublicCompose()">
+            <i data-lucide="pen-square" class="w-6 h-6"></i>
+        </button>
+
         <!-- ===== 底部导航栏 ===== -->
         <nav class="shrink-0 flex items-center justify-around bg-white/95 backdrop-blur border-t border-gray-100 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] z-10">
             <button id="tabTimeline" onclick="switchTab('timeline')"
@@ -558,17 +568,6 @@
                                focus:outline-none active:scale-95"
                         aria-label="切换 AI 分析">
                     <span id="aiToggleDot" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 translate-x-5"></span>
-                </button>
-            </div>
-
-            <!-- 公开到广场开关 -->
-            <div class="shrink-0 flex items-center justify-center gap-2 pb-2">
-                <span class="text-xs text-gray-400">🌐 公开到发现广场</span>
-                <button id="btnPublicToggle"
-                        class="relative w-10 h-5 rounded-full bg-gray-300 transition-colors duration-200
-                               focus:outline-none active:scale-95"
-                        aria-label="切换公开状态">
-                    <span id="publicToggleDot" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 translate-x-0"></span>
                 </button>
             </div>
 
@@ -1276,6 +1275,7 @@
         const moodStatsContent = document.getElementById('moodStatsContent');
         const writingPrompt = document.getElementById('writingPrompt');
         const btnTreeholeSend = document.getElementById('btnTreeholeSend');
+        const btnDiscoverCompose = document.getElementById('btnDiscoverCompose');
         const planeOverlay  = document.getElementById('planeOverlay');
         const planeIcon     = document.getElementById('planeIcon');
         const planeToast    = document.getElementById('planeToast');
@@ -1325,8 +1325,6 @@
         const thReplyIndicator         = document.getElementById('thReplyIndicator');
         const thReplyTargetName        = document.getElementById('thReplyTargetName');
         const btnThCancelReply         = document.getElementById('btnThCancelReply');
-        const btnPublicToggle = document.getElementById('btnPublicToggle');
-        const publicToggleDot = document.getElementById('publicToggleDot');
         const imageFileInput  = document.getElementById('imageFileInput');
         const btnPickImage    = document.getElementById('btnPickImage');
         const imageUploadStatus = document.getElementById('imageUploadStatus');
@@ -1335,7 +1333,6 @@
 
         let aiResult = null;
         let aiEnabled = false;
-        let isPublic = false;
         let currentTab = 'timeline';
         let currentTreeholeDiaryId = null;
         let currentTreeholeHugged = false;
@@ -1664,6 +1661,7 @@
                 tabTimeline.className = 'flex flex-col items-center gap-0.5 py-2.5 px-5 text-emerald-500 transition-colors active:scale-95';
                 document.getElementById('btnOpenModal').classList.remove('hidden');
                 btnTreeholeSend.classList.add('hidden');
+                btnDiscoverCompose.classList.add('hidden');
                 loadDiaries();
             } else if (tab === 'discover') {
                 document.getElementById('greeting').textContent = '发现同频日记';
@@ -1673,6 +1671,7 @@
                 tabDiscover.className = 'flex flex-col items-center gap-0.5 py-2.5 px-5 text-emerald-500 transition-colors active:scale-95';
                 document.getElementById('btnOpenModal').classList.add('hidden');
                 btnTreeholeSend.classList.add('hidden');
+                btnDiscoverCompose.classList.remove('hidden');
                 loadDiscover();
             } else if (tab === 'messages') {
                 document.getElementById('greeting').textContent = '消息中心';
@@ -1682,6 +1681,7 @@
                 tabMessages.className = 'flex flex-col items-center gap-0.5 py-2.5 px-5 text-indigo-500 transition-colors active:scale-95';
                 document.getElementById('btnOpenModal').classList.add('hidden');
                 btnTreeholeSend.classList.add('hidden');
+                btnDiscoverCompose.classList.add('hidden');
                 refreshMessageTabBadges();
             } else if (tab === 'treehole') {
                 document.getElementById('greeting').textContent = '陌生人树洞';
@@ -1691,6 +1691,7 @@
                 tabTreehole.className = 'flex flex-col items-center gap-0.5 py-2.5 px-5 text-emerald-500 transition-colors active:scale-95';
                 document.getElementById('btnOpenModal').classList.add('hidden');
                 btnTreeholeSend.classList.remove('hidden');
+                btnDiscoverCompose.classList.add('hidden');
                 loadTreehole();
             } else if (tab === 'profile') {
                 document.getElementById('greeting').textContent = '我的';
@@ -1700,6 +1701,7 @@
                 tabProfile.className = 'flex flex-col items-center gap-0.5 py-2.5 px-5 text-amber-500 transition-colors active:scale-95';
                 document.getElementById('btnOpenModal').classList.add('hidden');
                 btnTreeholeSend.classList.add('hidden');
+                btnDiscoverCompose.classList.add('hidden');
                 switchProfileSub('main');
                 loadProfileTab();
             }
@@ -1834,6 +1836,8 @@
             document.body.style.overflow = '';
         }
         function resetModal() {
+            composeMode = 'diary';
+            writingPrompt.textContent = '💡 ' + pickPrompt();
             textarea.value = '';
             aiResult = null;
             aiResultArea.classList.add('hidden');
@@ -1843,13 +1847,9 @@
             lucide.createIcons();
             btnAi.querySelector('.ai-label').textContent = 'AI 帮你总结';
             btnAi.disabled = false;
-            writingPrompt.textContent = '💡 ' + pickPrompt();
             // 重置 AI 开关为关
             aiEnabled = false;
             updateAiToggleUI();
-            // 重置树洞开关为关
-            isPublic = false;
-            updatePublicToggleUI();
             // 重置图片
             currentImageUrls = [];
             imageThumbnails.innerHTML = '';
@@ -1890,21 +1890,6 @@
         btnAiToggle.addEventListener('click', () => {
             aiEnabled = !aiEnabled;
             updateAiToggleUI();
-        });
-
-        // ===== 树洞公开开关 =====
-        function updatePublicToggleUI() {
-            if (isPublic) {
-                btnPublicToggle.className = 'relative w-10 h-5 rounded-full bg-pink-400 transition-colors duration-200 focus:outline-none active:scale-95';
-                publicToggleDot.className = 'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 translate-x-5';
-            } else {
-                btnPublicToggle.className = 'relative w-10 h-5 rounded-full bg-gray-300 transition-colors duration-200 focus:outline-none active:scale-95';
-                publicToggleDot.className = 'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 translate-x-0';
-            }
-        }
-        btnPublicToggle.addEventListener('click', () => {
-            isPublic = !isPublic;
-            updatePublicToggleUI();
         });
 
         // ===== AI 分析 =====
@@ -1960,16 +1945,16 @@
             const tagsStr = aiResult ? (aiResult.tags || []).join(',') : '';
             const summary = aiResult ? (aiResult.summary || '') : '';
             const message = aiResult ? (aiResult.message || '') : '';
+            const isPublic = composeMode === 'public';
             btnSave.disabled = true;
             btnSave.innerHTML = '<span class="loader w-5 h-5 border-2 border-white border-t-transparent rounded-full inline-block"></span> 保存中...';
             try {
                 await EchoAPI.saveDiary({ mood, content, ai_summary: summary, ai_message: message, tags: tagsStr, is_public: isPublic, image_url: currentImageUrls[0] || '', image_urls: currentImageUrls });
                 if (isPublic) {
-                    // 纸飞机起飞动画
                     planeIcon.style.animation = 'none';
                     void planeIcon.offsetWidth;
                     planeIcon.style.animation = 'planeTakeoff 1.5s ease-out forwards';
-                    planeToast.textContent = '📮 日记已公开，同频的人会看到它';
+                    planeToast.textContent = '📮 已发布到发现广场，同频的人会看到它';
                     planeOverlay.classList.remove('opacity-0', 'pointer-events-none');
                     planeOverlay.classList.add('opacity-100');
                     btnSave.disabled = false;
@@ -1978,12 +1963,10 @@
                     await new Promise(r => setTimeout(r, 1600));
                     planeOverlay.classList.add('opacity-0', 'pointer-events-none');
                     planeOverlay.classList.remove('opacity-100');
-                    closeModal();
-                    await loadDiaries();
-                } else {
-                    closeModal();
-                    await loadDiaries();
                 }
+                closeModal();
+                await loadDiaries();
+                if (isPublic) await loadDiscover();
             } catch (e) {
                 console.error('保存失败:', e);
                 alert('保存失败，请稍后再试～');
@@ -1991,6 +1974,7 @@
                 btnSave.disabled = false;
                 btnSave.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> 保存日记';
                 lucide.createIcons();
+                composeMode = 'diary';
             }
         });
 
@@ -3280,16 +3264,15 @@
             }
         });
 
-        // 从发现页跳转到写日记（自动开启公开）
-        window.switchToWritePublic = function() {
-            switchTab('timeline');
-            setTimeout(() => {
-                resetModal();
-                isPublic = true;
-                updatePublicToggleUI();
-                writingPrompt.textContent = '🫧 分享你的心情，让更多人感受到～';
-                openModal();
-            }, 200);
+        // composeMode: 'diary'=私密日记, 'public'=公开发布
+        let composeMode = 'diary';
+
+        // 从发现页打开发布公开日记弹窗
+        window.openPublicCompose = function() {
+            resetModal();
+            composeMode = 'public';
+            writingPrompt.textContent = '🫧 分享你的心情，让更多人感受到～';
+            openModal();
         };
 
         // ===== 我的主页弹窗 =====
