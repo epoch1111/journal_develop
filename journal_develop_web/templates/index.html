@@ -83,6 +83,7 @@
         .mood-stripe-难过 { border-left-color: #3B82F6; }
         .mood-stripe-生气 { border-left-color: #EF4444; }
         .mood-stripe-幸福 { border-left-color: #EC4899; }
+        .mood-stripe-平静 { border-left-color: #9CA3AF; }
 
         /* 抱抱动画 */
         @keyframes hugBounce {
@@ -240,6 +241,7 @@
                 <button class="discover-mood-btn px-3 py-1.5 rounded-full text-sm bg-gray-100 text-gray-400 active:scale-95 transition-all shrink-0" data-mood="😢">😢</button>
                 <button class="discover-mood-btn px-3 py-1.5 rounded-full text-sm bg-gray-100 text-gray-400 active:scale-95 transition-all shrink-0" data-mood="😡">😡</button>
                 <button class="discover-mood-btn px-3 py-1.5 rounded-full text-sm bg-gray-100 text-gray-400 active:scale-95 transition-all shrink-0" data-mood="🥰">🥰</button>
+                <button class="discover-mood-btn px-3 py-1.5 rounded-full text-sm bg-gray-100 text-gray-400 active:scale-95 transition-all shrink-0" data-mood="😐">😐</button>
             </div>
             <!-- 标签筛选 -->
             <div id="tagFilterBar" class="filter-scroll hide-scrollbar items-center gap-2">
@@ -568,6 +570,7 @@
                 <button class="mood-btn text-3xl select-none" data-mood="😢">😢</button>
                 <button class="mood-btn text-3xl select-none" data-mood="😡">😡</button>
                 <button class="mood-btn text-3xl select-none" data-mood="🥰">🥰</button>
+                <button class="mood-btn text-3xl select-none" data-mood="😐">😐</button>
             </div>
 
             <!-- AI 开关 -->
@@ -668,6 +671,7 @@
                     <button class="capsule-mood-btn text-3xl select-none" data-mood="😢">😢</button>
                     <button class="capsule-mood-btn text-3xl select-none" data-mood="😡">😡</button>
                     <button class="capsule-mood-btn text-3xl select-none" data-mood="🥰">🥰</button>
+                    <button class="capsule-mood-btn text-3xl select-none" data-mood="😐">😐</button>
                 </div>
             </div>
             <!-- 图片工具栏 -->
@@ -727,6 +731,7 @@
                     <button class="treehole-mood-btn text-3xl select-none" data-mood="😢">😢</button>
                     <button class="treehole-mood-btn text-3xl select-none" data-mood="😡">😡</button>
                     <button class="treehole-mood-btn text-3xl select-none" data-mood="🥰">🥰</button>
+                    <button class="treehole-mood-btn text-3xl select-none" data-mood="😐">😐</button>
                 </div>
             </div>
             <!-- 正文输入 -->
@@ -1240,6 +1245,7 @@
             '😢': { label: '难过', accent: '#DBEAFE', border: '#3B82F6', stripeClass: 'mood-stripe-难过' },
             '😡': { label: '生气', accent: '#FEE2E2', border: '#EF4444', stripeClass: 'mood-stripe-生气' },
             '🥰': { label: '幸福', accent: '#FCE7F3', border: '#EC4899', stripeClass: 'mood-stripe-幸福' },
+            '😐': { label: '平静', accent: '#F3F4F6', border: '#9CA3AF', stripeClass: 'mood-stripe-平静' },
         };
 
         // ===== 引导提示池 =====
@@ -2250,6 +2256,7 @@
                         <div class="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 flex-1">
                             <div class="flex items-center gap-1.5 mb-1">
                                 <span class="text-[11px] font-medium text-gray-500">${anonName}</span>
+                                ${r.is_author ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-amber-100 text-amber-600 font-medium ml-0.5">作者</span>' : ''}
                                 ${replyToName ? `<span class="text-[10px] text-purple-400">回复 ${replyToName}</span>` : ''}
                                 <span class="text-[10px] text-gray-300">· ${formatDate(r.created_at)}</span>
                             </div>
@@ -2560,6 +2567,7 @@
                         <button class="edit-mood-btn text-3xl select-none ${d.mood === '😢' ? 'active' : ''}" data-mood="😢" style="${d.mood !== '😢' ? 'opacity:0.45;filter:grayscale(0.3)' : ''}">😢</button>
                         <button class="edit-mood-btn text-3xl select-none ${d.mood === '😡' ? 'active' : ''}" data-mood="😡" style="${d.mood !== '😡' ? 'opacity:0.45;filter:grayscale(0.3)' : ''}">😡</button>
                         <button class="edit-mood-btn text-3xl select-none ${d.mood === '🥰' ? 'active' : ''}" data-mood="🥰" style="${d.mood !== '🥰' ? 'opacity:0.45;filter:grayscale(0.3)' : ''}">🥰</button>
+                        <button class="edit-mood-btn text-3xl select-none ${d.mood === '😐' ? 'active' : ''}" data-mood="😐" style="${d.mood !== '😐' ? 'opacity:0.45;filter:grayscale(0.3)' : ''}">😐</button>
                     </div>
                 </div>
                 <!-- 正文 -->
@@ -3127,6 +3135,7 @@
                             <div class="flex items-center justify-between mb-1">
                                 <div class="flex items-center gap-1.5">
                                     <button class="disc-comment-author-btn text-[11px] font-medium text-gray-500 hover:text-emerald-500 transition-colors" data-user-id="${userId}">${authorName}</button>
+                                    ${c.is_author ? '<span class="text-[9px] px-1.5 py-px rounded-full bg-amber-100 text-amber-600 font-medium ml-0.5">作者</span>' : ''}
                                     ${replyToName ? `<span class="text-[10px] text-emerald-400">回复 ${replyToName}</span>` : ''}
                                     <span class="text-[10px] text-gray-300">· ${formatDate(c.created_at)}</span>
                                 </div>

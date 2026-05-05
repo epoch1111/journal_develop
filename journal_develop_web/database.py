@@ -2,7 +2,10 @@ from __future__ import annotations
 import re
 import sqlite3
 import os
+import random
 from datetime import datetime
+
+from config import AVATAR_POOL
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "echo.db")
 
@@ -13,6 +16,7 @@ MOOD_KEYWORD_MAP = {
     "难过": "😢", "伤心": "😢",
     "生气": "😡", "愤怒": "😡",
     "幸福": "🥰", "幸运": "🥰",
+    "平静": "😐", "平淡": "😐", "一般": "😐",
 }
 
 
@@ -718,8 +722,8 @@ def add_public_diary_comment(diary_id, client_id, content, user_id=None,
     return comment_id
 
 
-def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
-    """获取评论列表，返回线程结构：一级评论 + replies（含作者信息、reply_to_nickname、点赞信息）"""
+def list_public_diary_comments(diary_id, limit=50, viewer_id=None, diary_owner_id=None):
+    """获取评论列表，返回线程结构：一级评论 + replies（含作者信息、reply_to_nickname、点赞信息、is_author）"""
     conn = get_connection()
     rows = conn.execute(
         """SELECT id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id
@@ -731,6 +735,11 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
     if not rows:
         conn.close()
         return []
+
+    # 获取日记作者 ID
+    if diary_owner_id is None:
+        owner_row = conn.execute("SELECT user_id FROM diaries WHERE id = ?", (diary_id,)).fetchone()
+        diary_owner_id = owner_row["user_id"] if owner_row else None
 
     # 收集所有需要查昵称的 user_id
     all_uids = set()
@@ -788,6 +797,7 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
 
         d["like_count"] = like_count_map.get(cid, 0)
         d["liked"] = cid in liked_set
+        d["is_author"] = bool(uid and uid == diary_owner_id)
 
         d["replies"] = []
         all_comments[cid] = d
@@ -1023,7 +1033,7 @@ def create_user(username: str, password_hash: str, email: str = "") -> dict | No
     try:
         cursor = conn.execute(
             "INSERT INTO users (nickname, avatar, bio, interests, username, password_hash, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (username, "🐰", "今天也在认真生活", "日记,生活,小确幸", username, password_hash, email, now, now)
+            (username, random.choice(AVATAR_POOL), "今天也在认真生活", "日记,生活,小确幸", username, password_hash, email, now, now)
         )
         conn.commit()
         user_id = cursor.lastrowid
@@ -1955,17 +1965,22 @@ def get_treehole_reply_full(reply_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def list_treehole_replies(diary_id: int, viewer_id: int | None = None) -> list[dict]:
-    """获取树洞回复列表——返回线程结构（一级回复 + replies 子数组）"""
+def list_treehole_replies(diary_id: int, viewer_id: int | None = None, diary_owner_id: int | None = None) -> list[dict]:
+    """获取树洞回复列表——返回线程结构（一级回复 + replies 子数组，含 is_author）"""
     conn = get_connection()
     rows = conn.execute(
-        "SELECT id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id FROM treehole_replies WHERE diary_id = ? ORDER BY created_at ASC",
+        "SELECT id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id FROM treehole_replies WHERE diary_id = ? ORDER BY created_at ASC",
         (diary_id,),
     ).fetchall()
 
     if not rows:
         conn.close()
         return []
+
+    # 获取树洞作者 ID
+    if diary_owner_id is None:
+        owner_row = conn.execute("SELECT user_id FROM diaries WHERE id = ?", (diary_id,)).fetchone()
+        diary_owner_id = owner_row["user_id"] if owner_row else None
 
     # 收集所有 identity_id
     all_id_ids = set()
@@ -2022,6 +2037,8 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None) -> list[d
 
         d["like_count"] = like_count_map.get(rid, 0)
         d["liked"] = rid in liked_set
+        d["is_author"] = bool(d.get("user_id") and d["user_id"] == diary_owner_id)
+        d.pop("user_id", None)  # 不暴露真实 user_id
 
         d["replies"] = []
         all_replies[rid] = d

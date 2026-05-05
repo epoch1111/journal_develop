@@ -29,7 +29,11 @@ MOOD_COLORS = {
     "😢": {"accent": "#DBEAFE", "border": "#3B82F6", "label": "难过"},
     "😡": {"accent": "#FEE2E2", "border": "#EF4444", "label": "生气"},
     "🥰": {"accent": "#FCE7F3", "border": "#EC4899", "label": "幸福"},
+    "😐": {"accent": "#F3F4F6", "border": "#9CA3AF", "label": "平静"},
 }
+
+# 注册时随机头像池
+AVATAR_POOL = ["🐰", "🐱", "🐶", "🐻", "🦊", "🐼", "🐨", "🐙", "🦁", "🐮", "🐸", "🐵", "🦄", "🐳", "🌸", "⭐", "🌈", "🍀"]
 
 # 引导式写作提示
 WRITING_PROMPTS = [
