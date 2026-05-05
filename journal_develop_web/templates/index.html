@@ -1260,20 +1260,25 @@
         ];
 
         // ===== 根据时间更新问候语 =====
-        (function updateGreeting() {
+        function getGreetingName() { return (myProfileData && myProfileData.nickname) || '小兔'; }
+
+        function updateTimeGreeting() {
             try {
                 const hour = new Date().getHours();
+                const name = getGreetingName();
                 let greeting, sub;
-                if (hour < 6)  { greeting = '夜深了，小兔'; sub = '失眠也没关系，我陪着你'; }
-                else if (hour < 12) { greeting = '早安，小兔'; sub = '新的一天，从这里开始'; }
-                else if (hour < 14) { greeting = '中午好，小兔'; sub = '午休时可以记录一下'; }
-                else if (hour < 18) { greeting = '下午好，小兔'; sub = '今天的进度如何？'; }
-                else if (hour < 22) { greeting = '晚上好，小兔'; sub = '回顾一下今天吧'; }
-                else { greeting = '夜深了，小兔'; sub = '写下来，然后安心入眠'; }
+                if (hour < 6)  { greeting = '夜深了，' + name; sub = '失眠也没关系，我陪着你'; }
+                else if (hour < 12) { greeting = '早安，' + name; sub = '新的一天，从这里开始'; }
+                else if (hour < 14) { greeting = '中午好，' + name; sub = '午休时可以记录一下'; }
+                else if (hour < 18) { greeting = '下午好，' + name; sub = '今天的进度如何？'; }
+                else if (hour < 22) { greeting = '晚上好，' + name; sub = '回顾一下今天吧'; }
+                else { greeting = '夜深了，' + name; sub = '写下来，然后安心入眠'; }
                 document.getElementById('greeting').textContent = greeting;
                 document.getElementById('subtitle').textContent = sub;
             } catch (e) { /* 忽略初始化错误，不影响核心功能 */ }
-        })();
+        }
+
+        (function initGreeting() { updateTimeGreeting(); })();
 
         // ===== DOM 引用 =====
         const diaryList     = document.getElementById('diaryList');
@@ -1687,19 +1692,6 @@
         }
 
         // ===== 视图切换 =====
-        function updateTimeGreeting() {
-            const hour = new Date().getHours();
-            let greeting, sub;
-            if (hour < 6)  { greeting = '夜深了，小兔'; sub = '失眠也没关系，我陪着你'; }
-            else if (hour < 12) { greeting = '早安，小兔'; sub = '新的一天，从这里开始'; }
-            else if (hour < 14) { greeting = '中午好，小兔'; sub = '午休时可以记录一下'; }
-            else if (hour < 18) { greeting = '下午好，小兔'; sub = '今天的进度如何？'; }
-            else if (hour < 22) { greeting = '晚上好，小兔'; sub = '回顾一下今天吧'; }
-            else { greeting = '夜深了，小兔'; sub = '写下来，然后安心入眠'; }
-            document.getElementById('greeting').textContent = greeting;
-            document.getElementById('subtitle').textContent = sub;
-        }
-
         window.switchTab = function(tab) {
             currentTab = tab;
             [viewTimeline, viewDiscover, viewMessages, viewTreehole, viewProfile].forEach(v => v.classList.add('hidden'));
@@ -4731,8 +4723,8 @@
                 document.getElementById('headerAvatar').textContent = user.avatar;
             }
             if (user && user.nickname) {
-                document.getElementById('greeting').textContent =
-                    document.getElementById('greeting').textContent.replace(/，.+$/, '，' + user.nickname);
+                myProfileData = user;
+                updateTimeGreeting();
             }
             // 刷新未读数
             fetchUnreadCount();
@@ -5247,8 +5239,7 @@
                     myProfileData = userResp.user;
                     if (userResp.user.avatar) document.getElementById('headerAvatar').textContent = userResp.user.avatar;
                     if (userResp.user.nickname) {
-                        document.getElementById('greeting').textContent =
-                            document.getElementById('greeting').textContent.replace(/，.+$/, '，' + userResp.user.nickname);
+                        updateTimeGreeting();
                     }
                     fetchUnreadCount();
                     fetchMsgUnreadCount();
