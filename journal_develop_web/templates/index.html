@@ -154,8 +154,9 @@
                         <i data-lucide="bell" class="w-5 h-5"></i>
                         <span id="notificationBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-400 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow">0</span>
                     </button>
-                    <button id="btnMyProfile" class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center text-2xl shadow-sm select-none hover:shadow-md active:scale-95 transition-all" title="我的主页">
+                    <button id="btnMyProfile" class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center text-2xl shadow-sm select-none hover:shadow-md active:scale-95 transition-all overflow-hidden" title="我的主页">
                         <span id="headerAvatar">🐰</span>
+                        <img id="headerAvatarImg" class="hidden w-full h-full rounded-full object-cover" src="" alt="">
                     </button>
                 </div>
             </div>
@@ -923,13 +924,26 @@
                 <span class="w-10"></span>
             </div>
             <div class="space-y-4">
+                <!-- 头像 -->
+                <div class="flex items-center gap-4">
+                    <div id="avatarPreview" class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border-2 border-dashed border-gray-200">
+                        <span id="avatarPreviewText" class="text-4xl">🐰</span>
+                        <img id="avatarPreviewImg" class="hidden w-full h-full object-cover" src="" alt="">
+                    </div>
+                    <div>
+                        <input id="editAvatarFile" type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden">
+                        <button id="btnPickAvatar" type="button" class="px-4 py-2 rounded-xl bg-gray-50 text-gray-500 text-xs font-medium hover:bg-emerald-50 hover:text-emerald-500 active:scale-95 transition-all border border-gray-100">📷 上传照片</button>
+                        <span id="avatarUploadStatus" class="text-[10px] text-gray-400 ml-2 hidden"></span>
+                    </div>
+                </div>
                 <div>
                     <label class="text-xs text-gray-400 mb-1 block">昵称</label>
                     <input id="editNickname" type="text" maxlength="20" class="w-full px-4 py-3 rounded-2xl bg-gray-50 text-sm text-gray-700 border-0 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all">
                 </div>
                 <div>
-                    <label class="text-xs text-gray-400 mb-1 block">头像 emoji</label>
-                    <input id="editAvatar" type="text" maxlength="10" class="w-full px-4 py-3 rounded-2xl bg-gray-50 text-sm text-gray-700 border-0 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all">
+                    <p class="text-xs text-gray-400 mb-2">默认头像</p>
+                    <div id="defaultAvatarGrid" class="grid grid-cols-6 gap-2 mb-2"></div>
+                    <input id="editAvatar" type="hidden" value="">
                 </div>
                 <div>
                     <label class="text-xs text-gray-400 mb-1 block">简介</label>
@@ -1131,6 +1145,7 @@
                         <i data-lucide="arrow-left" class="w-6 h-6 text-gray-500"></i>
                     </button>
                     <span id="chatPartnerAvatar" class="text-2xl shrink-0 select-none">🐰</span>
+                    <img id="chatPartnerAvatarImg" class="hidden w-9 h-9 rounded-full object-cover shrink-0" src="" alt="">
                     <span id="chatPartnerName" class="text-sm font-semibold text-gray-800 truncate">小兔</span>
                 </div>
                 <div id="chatMessages" class="flex-1 overflow-y-auto hide-scrollbar px-5 py-4 space-y-3">
@@ -1258,6 +1273,57 @@
             '如果今天是一首歌，会是哪一首？',
             '你今天最想感谢的人是谁？',
         ];
+
+        // ===== 头像渲染工具 =====
+        const DEFAULT_AVATARS = ["🐰", "🐱", "🐶", "🐻", "🦊", "🐼", "🐨", "🐙", "🦁", "🐮", "🐸", "🐵", "🦄", "🐳", "🌸", "⭐", "🌈", "🍀"];
+
+        function updateAvatarPreview(avatar) {
+            setAvatarElements(
+                document.getElementById('avatarPreviewText'),
+                document.getElementById('avatarPreviewImg'),
+                avatar
+            );
+            const hiddenInput = document.getElementById('editAvatar');
+            if (hiddenInput) hiddenInput.value = avatar || '';
+        }
+
+        function buildDefaultAvatarGrid(currentAvatar) {
+            const grid = document.getElementById('defaultAvatarGrid');
+            if (!grid) return;
+            grid.innerHTML = DEFAULT_AVATARS.map(emoji => {
+                const selected = (emoji === currentAvatar) ? 'ring-2 ring-emerald-400 bg-emerald-50' : 'bg-gray-50 hover:bg-gray-100';
+                return `<button type="button" class="w-10 h-10 rounded-full flex items-center justify-center text-xl ${selected} transition-all active:scale-95" data-avatar="${emoji}" title="${emoji}">${emoji}</button>`;
+            }).join('');
+            grid.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const emoji = btn.dataset.avatar;
+                    updateAvatarPreview(emoji);
+                    buildDefaultAvatarGrid(emoji);
+                });
+            });
+        }
+
+        function setAvatarElements(textEl, imgEl, avatar) {
+            if (!textEl || !imgEl) return;
+            if (/^(\/|https?:\/\/)/.test(avatar)) {
+                imgEl.src = avatar;
+                imgEl.classList.remove('hidden');
+                textEl.classList.add('hidden');
+            } else {
+                textEl.textContent = avatar || '🐰';
+                textEl.classList.remove('hidden');
+                imgEl.classList.add('hidden');
+            }
+        }
+
+        function renderAvatar(avatar, size = 40) {
+            if (!avatar) return '🐰';
+            if (/^(\/|https?:\/\/)/.test(avatar)) {
+                return `<img src="${escapeHtml(avatar)}" class="rounded-full object-cover" style="width:${size}px;height:${size}px" alt="avatar">`;
+            }
+            const fontSize = typeof size === 'number' ? Math.round(size * 0.6) : 24;
+            return `<span style="font-size:${fontSize}px">${avatar}</span>`;
+        }
 
         // ===== 根据时间更新问候语 =====
         function getGreetingName() { return (myProfileData && myProfileData.nickname) || '小兔'; }
@@ -2913,7 +2979,7 @@
                 card.innerHTML = `
                     <div class="flex items-center justify-between mb-3">
                         <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                            <span class="text-lg select-none">${d.author_avatar || '🐰'}</span>
+                            ${renderAvatar(d.author_avatar, 22)}
                             <span class="text-xs font-medium text-gray-600">${d.author_name || '小兔'}</span>
                         </button>
                         <div class="flex items-center gap-2">
@@ -2957,7 +3023,7 @@
                 card.innerHTML = `
                     <div class="flex items-center justify-between mb-3">
                         <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                            <span class="text-lg select-none">${d.author_avatar || '🐰'}</span>
+                            ${renderAvatar(d.author_avatar, 22)}
                             <span class="text-xs font-medium text-gray-600">${d.author_name || '小兔'}</span>
                             ${d.anonymous ? '<span class="text-[10px] text-gray-300">· 匿名</span>' : ''}
                         </button>
@@ -3165,7 +3231,7 @@
             discDetailContent.innerHTML = `
                 <div class="flex items-center justify-between mb-4">
                     <button class="disc-detail-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                        <span class="text-lg select-none">${d.author_avatar || '🐰'}</span>
+                        ${renderAvatar(d.author_avatar, 22)}
                         <span class="text-sm font-medium text-gray-600">${d.author_name || '小兔'}</span>
                     </button>
                     <div class="flex items-center gap-2">
@@ -3368,7 +3434,11 @@
                 const data = await EchoAPI.fetchMyProfile();
                 myProfileData = data;
                 renderMyProfile(data);
-                document.getElementById('headerAvatar').textContent = data.avatar || '🐰';
+                setAvatarElements(
+                    document.getElementById('headerAvatar'),
+                    document.getElementById('headerAvatarImg'),
+                    data.avatar
+                );
             } catch (e) {
                 console.error('加载主页失败:', e);
                 myProfileContent.innerHTML = '<p class="text-center text-gray-400 py-20">加载失败，请稍后再试</p>';
@@ -3396,7 +3466,7 @@
             const followerCount = data.follower_count ?? 0;
             myProfileContent.innerHTML = `
                 <div class="flex flex-col items-center">
-                    <span class="text-5xl mb-3">${data.avatar || '🐰'}</span>
+                    ${renderAvatar(data.avatar, 80)}
                     <h3 class="text-lg font-semibold text-gray-800">${escapeHtml(data.nickname || '小兔')}</h3>
                     <p class="text-[10px] text-gray-300 mt-0.5">UID: ${data.id}</p>
                     <p class="text-sm text-gray-500 mt-1 text-center">${escapeHtml(data.bio || '')}</p>
@@ -3488,9 +3558,11 @@
         document.getElementById('btnEditProfile').addEventListener('click', () => {
             if (!myProfileData) return;
             document.getElementById('editNickname').value = myProfileData.nickname || '';
-            document.getElementById('editAvatar').value = myProfileData.avatar || '';
             document.getElementById('editBio').value = myProfileData.bio || '';
             document.getElementById('editInterests').value = myProfileData.interests || '';
+            updateAvatarPreview(myProfileData.avatar || '🐰');
+            buildDefaultAvatarGrid(myProfileData.avatar || '🐰');
+            document.getElementById('avatarUploadStatus').classList.add('hidden');
             editProfileOverlay.classList.remove('opacity-0', 'pointer-events-none');
             editProfileOverlay.classList.add('opacity-100');
         });
@@ -3568,7 +3640,7 @@
             if (data.blocked) {
                 authorProfileContent.innerHTML = `
                     <div class="flex flex-col items-center py-10">
-                        <span class="text-5xl mb-3">${data.avatar || '🐰'}</span>
+                        ${renderAvatar(data.avatar, 80)}
                         <h3 class="text-lg font-semibold text-gray-800">${escapeHtml(data.nickname || '小兔')}</h3>
                         <p class="text-sm text-gray-400 mt-4 text-center">${escapeHtml(data.message || '由于安全设置，暂时无法查看该用户主页')}</p>
                         <div class="flex gap-3 mt-6">
@@ -3644,7 +3716,7 @@
 
             authorProfileContent.innerHTML = `
                 <div class="flex flex-col items-center">
-                    <span class="text-5xl mb-3">${data.avatar || '🐰'}</span>
+                    ${renderAvatar(data.avatar, 80)}
                     <h3 class="text-lg font-semibold text-gray-800">${escapeHtml(data.nickname || '小兔')}</h3>
                     <p class="text-sm text-gray-500 mt-1 text-center">${escapeHtml(data.bio || '')}</p>
                     ${tagHtml ? `<div class="flex flex-wrap justify-center gap-2 mt-4">${tagHtml}</div>` : ''}
@@ -3871,7 +3943,7 @@
                 } else {
                     content.innerHTML = data.map(u => `
                         <div class="flex items-center gap-3 bg-gray-50 rounded-2xl p-4 cursor-pointer hover:bg-gray-100 active:scale-[0.98] transition-all follow-user-card" data-uid="${u.id}">
-                            <span class="text-3xl shrink-0">${u.avatar || '🐰'}</span>
+                            ${renderAvatar(u.avatar, 36)}
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-gray-800">${escapeHtml(u.nickname || '')}</p>
                                 <p class="text-xs text-gray-400 truncate">${escapeHtml(u.bio || '')}</p>
@@ -4071,7 +4143,7 @@
 
                 return `<div class="bg-white rounded-2xl p-4 border border-gray-50 shadow-sm">
                     <div class="flex items-start gap-3">
-                        <span class="text-2xl shrink-0 select-none">${avatar}</span>
+                        ${renderAvatar(avatar, 32)}
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="text-sm font-medium text-gray-800">${nickname}</span>
@@ -4139,6 +4211,7 @@
         const chatInput = document.getElementById('chatInput');
         const btnChatSend = document.getElementById('btnChatSend');
         const chatPartnerAvatar = document.getElementById('chatPartnerAvatar');
+        const chatPartnerAvatarImg = document.getElementById('chatPartnerAvatarImg');
         const chatPartnerName = document.getElementById('chatPartnerName');
         const messageUnreadBadge = document.getElementById('messageUnreadBadge');
         const btnMessageCenter = document.getElementById('btnMessageCenter');
@@ -4220,7 +4293,7 @@
                         const time = formatDate(c.last_message_at || '');
                         const unread = c.unread_count || 0;
                         return `<div class="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-50 shadow-sm cursor-pointer hover:shadow-md active:scale-[0.98] transition-all conv-item" data-conv-id="${c.id}" data-partner='${JSON.stringify({id: other.id, nickname: other.nickname, avatar: other.avatar}).replace(/'/g, "&#39;")}'>
-                            <span class="text-3xl shrink-0 select-none">${avatar}</span>
+                            ${renderAvatar(avatar, 36)}
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center justify-between mb-0.5">
                                     <span class="text-sm font-medium text-gray-800">${name}</span>
@@ -4250,7 +4323,7 @@
         async function openChatDetail(convId, partner) {
             currentConvId = convId;
             currentChatPartner = partner;
-            chatPartnerAvatar.textContent = partner.avatar || '🐰';
+            setAvatarElements(chatPartnerAvatar, chatPartnerAvatarImg, partner.avatar);
             chatPartnerName.textContent = partner.nickname || '小兔';
             convListView.style.display = 'none';
             chatDetailView.classList.remove('hidden');
@@ -4373,12 +4446,12 @@
                         const subtitle = bio || interests || '';
                         const convId = c.has_conversation ? c.conversation_id : null;
                         return `<div class="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-50 shadow-sm">
-                            <span class="text-3xl shrink-0 select-none">${avatar}</span>
+                            ${renderAvatar(avatar, 36)}
                             <div class="flex-1 min-w-0">
                                 <span class="text-sm font-medium text-gray-800">${name}</span>
                                 ${subtitle ? `<p class="text-xs text-gray-400 truncate mt-0.5">${subtitle}</p>` : ''}
                             </div>
-                            <button data-user-id="${c.id}" data-nickname="${escapeHtml(c.nickname || c.username)}" data-avatar="${avatar}" class="shrink-0 w-9 h-9 rounded-full bg-emerald-50 text-emerald-400 flex items-center justify-center hover:bg-emerald-100 active:scale-95 transition-all acquaintance-chat-btn" title="发消息">
+                            <button data-user-id="${c.id}" data-nickname="${escapeHtml(c.nickname || c.username)}" data-avatar="${escapeHtml(c.avatar || '🐰')}" class="shrink-0 w-9 h-9 rounded-full bg-emerald-50 text-emerald-400 flex items-center justify-center hover:bg-emerald-100 active:scale-95 transition-all acquaintance-chat-btn" title="发消息">
                                 <i data-lucide="message-circle" class="w-4 h-4"></i>
                             </button>
                         </div>`;
@@ -4503,7 +4576,7 @@
                 const bgClass = isUnread ? 'bg-emerald-50/50 border-emerald-100/50' : 'bg-white border-gray-50';
                 const timeStr = formatDate(n.created_at);
                 const actorHtml = n.actor
-                    ? `<span class="text-lg shrink-0 select-none">${n.actor.avatar || '🐰'}</span>`
+                    ? `${renderAvatar(n.actor.avatar, 22)}`
                     : '<span class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center text-lg shrink-0 shadow-sm select-none">👻</span>';
                 const actorName = n.actor ? escapeHtml(n.actor.nickname || '') : '匿名小伙伴';
                 const clickAction = getNotificationClickAction(n);
@@ -4720,7 +4793,11 @@
         async function onLoginSuccess(user) {
             btnLoginPrompt.classList.add('hidden');
             if (user && user.avatar) {
-                document.getElementById('headerAvatar').textContent = user.avatar;
+                setAvatarElements(
+                    document.getElementById('headerAvatar'),
+                    document.getElementById('headerAvatarImg'),
+                    user.avatar
+                );
             }
             if (user && user.nickname) {
                 myProfileData = user;
@@ -4842,7 +4919,11 @@
             try {
                 const data = await EchoAPI.fetchMyProfile();
                 myProfileData = data;
-                document.getElementById('headerAvatar').textContent = data.avatar || '🐰';
+                setAvatarElements(
+                    document.getElementById('headerAvatar'),
+                    document.getElementById('headerAvatarImg'),
+                    data.avatar
+                );
                 const tags = data.interests ? data.interests.split(',').filter(Boolean) : [];
                 const tagHtml = tags.map(t => `<span class="text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 font-medium">#${t.trim()}</span>`).join(' ');
                 const keywordsHtml = (data.mood_keywords || []).map(k => `<span class="text-xs px-3 py-1 rounded-full bg-amber-50 text-amber-600 font-medium">${k}</span>`).join(' ');
@@ -4851,11 +4932,12 @@
 
                 container.innerHTML = `
                     <div class="flex flex-col items-center">
-                        <span class="text-5xl mb-3">${data.avatar || '🐰'}</span>
+                        ${renderAvatar(data.avatar, 80)}
                         <h3 class="text-lg font-semibold text-gray-800">${escapeHtml(data.nickname || '小兔')}</h3>
                         <p class="text-[10px] text-gray-300 mt-0.5">UID: ${data.id}</p>
                         <p class="text-sm text-gray-500 mt-1 text-center">${escapeHtml(data.bio || '')}</p>
-                        ${tagHtml ? `<div class="flex flex-wrap justify-center gap-2 mt-4">${tagHtml}</div>` : ''}
+                        <button id="btnEditProfileInline" class="mt-3 px-5 py-2 rounded-full bg-gray-50 text-gray-500 text-xs font-medium hover:bg-emerald-50 hover:text-emerald-500 active:scale-95 transition-all border border-gray-100">✏️ 编辑资料</button>
+                        ${tagHtml ? `<div class="flex flex-wrap justify-center gap-2 mt-3">${tagHtml}</div>` : ''}
                     </div>
                     <div class="grid grid-cols-3 gap-3">
                         <div class="bg-amber-50 rounded-2xl p-3 text-center">
@@ -4912,14 +4994,53 @@
                 document.getElementById('profileEntryStats').addEventListener('click', () => switchProfileSub('stats'));
                 document.getElementById('profileEntryCapsule').addEventListener('click', () => switchProfileSub('capsule'));
                 document.getElementById('profileEntrySafety').addEventListener('click', () => openSafetyCenter());
-                document.getElementById('profileEntryEdit').addEventListener('click', () => {
+
+                function openEditProfile() {
                     if (!myProfileData) return;
                     document.getElementById('editNickname').value = myProfileData.nickname || '';
-                    document.getElementById('editAvatar').value = myProfileData.avatar || '';
                     document.getElementById('editBio').value = myProfileData.bio || '';
                     document.getElementById('editInterests').value = myProfileData.interests || '';
+                    // 重置头像预览
+                    updateAvatarPreview(myProfileData.avatar || '🐰');
+                    buildDefaultAvatarGrid(myProfileData.avatar || '🐰');
+                    document.getElementById('avatarUploadStatus').classList.add('hidden');
                     editProfileOverlay.classList.remove('opacity-0', 'pointer-events-none');
                     editProfileOverlay.classList.add('opacity-100');
+                }
+
+                document.getElementById('profileEntryEdit').addEventListener('click', openEditProfile);
+                const btnEditInline = document.getElementById('btnEditProfileInline');
+                if (btnEditInline) btnEditInline.addEventListener('click', openEditProfile);
+
+                // 头像上传：选择文件
+                document.getElementById('btnPickAvatar').addEventListener('click', () => {
+                    document.getElementById('editAvatarFile').click();
+                });
+                document.getElementById('editAvatarFile').addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    // 本地预览
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        document.getElementById('avatarPreviewImg').src = ev.target.result;
+                        document.getElementById('avatarPreviewImg').classList.remove('hidden');
+                        document.getElementById('avatarPreviewText').classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                    // 上传到服务器
+                    const statusEl = document.getElementById('avatarUploadStatus');
+                    statusEl.textContent = '上传中...';
+                    statusEl.classList.remove('hidden');
+                    try {
+                        const data = await EchoAPI.uploadAvatar(file);
+                        document.getElementById('editAvatar').value = data.avatar || '';
+                        statusEl.textContent = '✓ 已上传';
+                        statusEl.className = 'text-[10px] text-emerald-500 ml-2';
+                    } catch (err) {
+                        statusEl.textContent = '上传失败';
+                        statusEl.className = 'text-[10px] text-red-400 ml-2';
+                        console.error('avatar upload error:', err);
+                    }
                 });
                 document.getElementById('profileBtnLogout').addEventListener('click', () => EchoAPI.logout());
 
@@ -5117,7 +5238,7 @@
                     } else {
                         safetyCenterContent.innerHTML = users.map(u => `
                             <div class="flex items-center gap-3 bg-gray-50 rounded-2xl p-4">
-                                <span class="text-3xl shrink-0">${u.avatar || '🐰'}</span>
+                                ${renderAvatar(u.avatar, 36)}
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-800">${escapeHtml(u.nickname || '')}</p>
                                     <p class="text-xs text-gray-400 truncate">${escapeHtml(u.bio || '')}</p>
@@ -5237,7 +5358,7 @@
                 const userResp = await EchoAPI.fetchCurrentUser();
                 if (userResp.ok && userResp.user) {
                     myProfileData = userResp.user;
-                    if (userResp.user.avatar) document.getElementById('headerAvatar').textContent = userResp.user.avatar;
+                    if (userResp.user.avatar) setAvatarElements(document.getElementById('headerAvatar'), document.getElementById('headerAvatarImg'), userResp.user.avatar);
                     if (userResp.user.nickname) {
                         updateTimeGreeting();
                     }

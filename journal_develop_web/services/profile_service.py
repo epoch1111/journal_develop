@@ -16,7 +16,7 @@ from database import (
 )
 
 MAX_NICKNAME = 20
-MAX_AVATAR = 10
+MAX_AVATAR = 500
 MAX_BIO = 100
 MAX_INTERESTS = 200
 

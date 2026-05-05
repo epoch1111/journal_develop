@@ -270,6 +270,21 @@ window.EchoAPI = {
         return res.json();
     },
 
+    async uploadAvatar(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = this.getToken();
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/profile/avatar', {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    },
+
     async fetchUserProfile(userId) {
         const token = this.getToken();
         const headers = {};

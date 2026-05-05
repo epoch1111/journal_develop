@@ -127,3 +127,28 @@ function enableHorizontalDragScroll(el) {
         el.scrollLeft += e.deltaY;
     }, { passive: false });
 }
+
+function renderAvatar(avatar, sizeOrClass = 32) {
+    const value = avatar || '🐰';
+    if (value.startsWith('/uploads/') || value.startsWith('http://') || value.startsWith('https://')) {
+        if (typeof sizeOrClass === 'number') {
+            return `<span class="inline-block shrink-0 rounded-full overflow-hidden align-middle" style="width:${sizeOrClass}px;height:${sizeOrClass}px;"><img src="${escapeHtml(value)}" class="w-full h-full object-cover" alt=""></span>`;
+        }
+        const cls = sizeOrClass || 'w-full h-full rounded-full object-cover';
+        return `<img src="${escapeHtml(value)}" class="${cls}" alt="avatar">`;
+    }
+    return escapeHtml(value);
+}
+
+function setAvatarElements(textEl, imgEl, value, fallback = '🐰') {
+    const v = value || fallback;
+    if (v.startsWith('/uploads/') || v.startsWith('http://') || v.startsWith('https://')) {
+        textEl.classList.add('hidden');
+        imgEl.src = v;
+        imgEl.classList.remove('hidden');
+    } else {
+        imgEl.classList.add('hidden');
+        textEl.textContent = v;
+        textEl.classList.remove('hidden');
+    }
+}

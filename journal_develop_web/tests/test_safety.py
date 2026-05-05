@@ -6,6 +6,8 @@ if sys.platform == 'win32':
 
 os.environ['ENVIRONMENT'] = 'development'
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi.testclient import TestClient
 from main import app
 

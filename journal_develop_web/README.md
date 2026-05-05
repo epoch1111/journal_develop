@@ -121,7 +121,8 @@ pip install bcrypt==4.0.1
 ├── requirements.txt           # Python 依赖
 ├── start.bat                  # Windows 一键启动
 ├── start.sh                   # macOS/Linux 一键启动
-├── test_all.py                # 全量回归测试脚本
+├── tests/
+│   └── test_all.py            # 全量回归测试脚本
 ├── echo.db                    # SQLite 数据库 (运行时生成)
 ├── models/
 │   └── schemas.py             # Pydantic 模型
@@ -271,7 +272,7 @@ pip install bcrypt==4.0.1
 ### 全量回归测试
 
 ```bash
-python test_all.py
+python tests/test_all.py
 ```
 
 覆盖 15 个测试类别、80+ 个测试用例：
@@ -280,7 +281,7 @@ python test_all.py
 ### 安全系统测试
 
 ```bash
-python test_safety.py
+python tests/test_safety.py
 ```
 
 ## 开发规范

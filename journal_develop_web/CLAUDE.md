@@ -26,11 +26,12 @@ E:\Anaconda\envs\journal_develop\python.exe -m pip install bcrypt==4.0.1
 - 服务重启前需要 `taskkill //F //IM python.exe` 杀掉所有残留 Python 进程
 - Windows 也可直接双击 `start.bat`，macOS/Linux 运行 `./start.sh`
 - 生成演示数据：`curl -X POST http://localhost:8000/api/dev/seed-demo`
-- 全量回归测试：`python test_all.py`（需服务运行或使用 TestClient 模式，151 用例）
-- 评论线程测试：`python test_comment_threading.py`（需服务运行，33 用例）
-- 树洞线程测试：`python test_treehole_threading.py`（需服务运行，36 用例）
-- 可见性边界测试：`python test_visibility_boundaries.py`（需服务运行，47 用例）
-- 安全系统测试：`python test_safety.py`（需服务运行，61 用例）
+- 全量回归测试：`python tests/test_all.py`（需服务运行或使用 TestClient 模式，151 用例）
+- 评论线程测试：`python tests/test_comment_threading.py`（需服务运行，33 用例）
+- 树洞线程测试：`python tests/test_treehole_threading.py`（需服务运行，36 用例）
+- 可见性边界测试：`python tests/test_visibility_boundaries.py`（需服务运行，47 用例）
+- 安全系统测试：`python tests/test_safety.py`（需服务运行，61 用例）
+- 发现搜索测试：`python tests/test_discover_search.py`（需服务运行）
 
 ## 技术架构
 
@@ -86,8 +87,14 @@ E:\Anaconda\envs\journal_develop\python.exe -m pip install bcrypt==4.0.1
 ├── docs/
 │   ├── API.md                 # 完整 API 文档（15 模块）
 │   └── DATABASE.md            # 数据库设计文档（12 张表）
-├── test_all.py                # 全量回归测试（15 类，80+ 用例）
-├── test_safety.py             # 安全系统手动测试
+├── tests/
+│   ├── test_all.py                # 全量回归测试（15 类，80+ 用例）
+│   ├── test_safety.py             # 安全系统手动测试
+│   ├── test_discover_search.py    # 发现搜索测试
+│   ├── test_comment_threading.py  # 评论线程测试
+│   ├── test_treehole_threading.py # 树洞线程测试
+│   ├── test_visibility_boundaries.py # 可见性边界测试
+│   └── test_realtime.py           # WebSocket 实时推送测试
 └── uploads/                   # 图片上传目录（运行时生成）
 ```
 

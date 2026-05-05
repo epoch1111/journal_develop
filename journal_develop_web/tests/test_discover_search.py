@@ -9,7 +9,9 @@ if sys.platform == 'win32':
 
 os.environ['ENVIRONMENT'] = 'development'
 
-_db_path = os.path.join(os.path.dirname(__file__), "echo.db")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+_db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "echo.db")
 if os.path.exists(_db_path):
     os.remove(_db_path)
 
