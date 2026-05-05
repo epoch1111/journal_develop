@@ -71,8 +71,11 @@ window.EchoAPI = {
 
     // ===== 日记 CRUD =====
 
-    async fetchDiaries(date) {
-        const url = date ? `/api/diaries?date=${date}` : '/api/diaries';
+    async fetchDiaries(date, keyword) {
+        const qs = new URLSearchParams();
+        if (date) qs.set('date', date);
+        if (keyword) qs.set('keyword', keyword);
+        const url = `/api/diaries?${qs.toString()}`;
         const res = await this._authFetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

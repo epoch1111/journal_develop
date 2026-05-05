@@ -29,9 +29,9 @@ async def save(body: dict = Body(...), user=Depends(require_user)):
 
 
 @router.get("/diaries")
-async def diaries(date: str = None, user=Depends(require_user)):
-    """获取日记列表，可选按日期过滤 (?date=YYYY-MM-DD)"""
-    return list_diaries(date, user["id"])
+async def diaries(date: str = None, keyword: str = None, user=Depends(require_user)):
+    """获取日记列表，可选按日期过滤 (?date=YYYY-MM-DD)，可选关键词搜索 (?keyword=xxx)"""
+    return list_diaries(date, user["id"], keyword)
 
 
 @router.get("/diaries/date/{date}")

@@ -81,9 +81,9 @@ def _check_ownership(diary_id: int, user_id: int) -> dict:
     return diary
 
 
-def list_diaries(date: str = None, user_id: int = None) -> list[dict]:
+def list_diaries(date: str = None, user_id: int = None, keyword: str = None) -> list[dict]:
     """获取日记列表，对未到期胶囊屏蔽内容"""
-    diaries = get_all_diaries_from_db(date, user_id)
+    diaries = get_all_diaries_from_db(date, user_id, keyword)
     # 批量附加图片
     if diaries:
         ids = [d["id"] for d in diaries]

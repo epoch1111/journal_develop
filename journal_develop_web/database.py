@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 import sqlite3
 import os
 from datetime import datetime
@@ -20,6 +21,28 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+class _DbContext:
+    """数据库连接上下文管理器，自动 commit/rollback/close"""
+    def __init__(self):
+        self.conn = get_connection()
+
+    def __enter__(self):
+        return self.conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.conn.commit()
+        else:
+            self.conn.rollback()
+        self.conn.close()
+        return False
+
+
+def get_db():
+    """上下文管理器，用法: with get_db() as conn: ..."""
+    return _DbContext()
 
 
 def init_db():
@@ -46,7 +69,7 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE diaries ADD COLUMN {col} {col_def}")
-        except Exception:
+        except sqlite3.OperationalError:
             pass
 
     # 用户表
@@ -69,17 +92,17 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_def}")
-        except Exception:
+        except sqlite3.OperationalError:
             pass
     # 为已有默认用户补充 username（username = echo_ + id）
     try:
         conn.execute("UPDATE users SET username = 'echo_' || id WHERE username IS NULL OR username = ''")
-    except Exception:
+    except sqlite3.OperationalError:
         pass
     # 创建 username 唯一索引（尝试创建，已存在则忽略）
     try:
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-    except Exception:
+    except sqlite3.OperationalError:
         pass
     # 确保默认用户存在
     row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
@@ -113,7 +136,7 @@ def init_db():
     """)
     try:
         conn.execute("ALTER TABLE public_diary_comments ADD COLUMN user_id INTEGER")
-    except Exception:
+    except sqlite3.OperationalError:
         pass
     for col, col_def in [
         ("parent_comment_id", "INTEGER DEFAULT NULL"),
@@ -122,7 +145,7 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE public_diary_comments ADD COLUMN {col} {col_def}")
-        except Exception:
+        except sqlite3.OperationalError:
             pass
 
     # 关注表
@@ -230,7 +253,7 @@ def init_db():
     # 增量添加 user_id 列（向后兼容）
     try:
         conn.execute("ALTER TABLE treehole_replies ADD COLUMN user_id INTEGER")
-    except Exception:
+    except sqlite3.OperationalError:
         pass
 
     # 树洞回复点赞表
@@ -288,7 +311,7 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE treehole_replies ADD COLUMN {col} {col_def}")
-        except Exception:
+        except sqlite3.OperationalError:
             pass
 
     # 举报表
@@ -325,27 +348,40 @@ def save_diary_to_db(mood: str, content: str, ai_summary: str, ai_message: str, 
     return row_id
 
 
-def get_all_diaries_from_db(date: str = None, user_id: int = None):
-    """获取日记列表（不含树洞），可选按日期过滤、按用户过滤"""
+def get_all_diaries_from_db(date: str = None, user_id: int = None, keyword: str = None):
+    """获取日记列表（不含树洞），可选按日期过滤、按用户过滤、关键词搜索"""
     conn = get_connection()
     base_where = "WHERE content_type != 'treehole' AND (content_type != 'diary' OR is_public = 0)"
-    if date and user_id is not None:
-        rows = conn.execute(
-            f"SELECT * FROM diaries {base_where} AND created_at LIKE ? AND user_id = ? ORDER BY created_at DESC",
-            (date + "%", user_id)
-        ).fetchall()
-    elif date:
-        rows = conn.execute(
-            f"SELECT * FROM diaries {base_where} AND created_at LIKE ? ORDER BY created_at DESC",
-            (date + "%",)
-        ).fetchall()
-    elif user_id is not None:
-        rows = conn.execute(
-            f"SELECT * FROM diaries {base_where} AND user_id = ? ORDER BY created_at DESC",
-            (user_id,)
-        ).fetchall()
-    else:
-        rows = conn.execute(f"SELECT * FROM diaries {base_where} ORDER BY created_at DESC").fetchall()
+    params = []
+
+    if date:
+        base_where += " AND created_at LIKE ?"
+        params.append(date + "%")
+    if user_id is not None:
+        base_where += " AND user_id = ?"
+        params.append(user_id)
+
+    # 关键词搜索（正文/标签/AI摘要/AI陪伴语/心情emoji或中文心情词）
+    kw_clause = ""
+    keyword = (keyword or "").strip()
+    if keyword:
+        like_val = f"%{keyword}%"
+        kw_clause = " AND (content LIKE ? OR tags LIKE ? OR ai_summary LIKE ? OR ai_message LIKE ?"
+        params.append(like_val)
+        params.append(like_val)
+        params.append(like_val)
+        params.append(like_val)
+        mood_key = MOOD_KEYWORD_MAP.get(keyword, None)
+        if mood_key is None and len(keyword) <= 2:
+            if re.search(r'[\U0001F300-\U0001F9FF]', keyword):
+                mood_key = keyword
+        if mood_key:
+            kw_clause += " OR mood = ?"
+            params.append(mood_key)
+        kw_clause += ")"
+
+    sql = f"SELECT * FROM diaries {base_where}{kw_clause} ORDER BY created_at DESC"
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
@@ -440,11 +476,9 @@ def update_diary(diary_id: int, updates: dict) -> bool:
 
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [diary_id]
-    conn = get_connection()
-    conn.execute(f"UPDATE diaries SET {set_clause} WHERE id = ?", values)
-    conn.commit()
-    affected = conn.total_changes
-    conn.close()
+    with get_db() as conn:
+        conn.execute(f"UPDATE diaries SET {set_clause} WHERE id = ?", values)
+        affected = conn.total_changes
     return affected > 0
 
 
@@ -620,7 +654,7 @@ def like_public_diary(diary_id, client_id):
         )
         conn.commit()
         success, already = True, False
-    except Exception:
+    except sqlite3.IntegrityError:
         success, already = True, True  # UNIQUE 约束冲突 = 已点亮过
     conn.close()
     return success, already
@@ -694,6 +728,10 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
         (diary_id, limit)
     ).fetchall()
 
+    if not rows:
+        conn.close()
+        return []
+
     # 收集所有需要查昵称的 user_id
     all_uids = set()
     all_reply_to_uids = set()
@@ -705,12 +743,30 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
         if reply_to_uid:
             all_reply_to_uids.add(reply_to_uid)
 
-    # 批量获取用户信息（小项目用缓存字典避免重复查询）
+    # 批量获取用户信息
     user_cache = {}
     for uid in all_uids | all_reply_to_uids:
         user_cache[uid] = get_user_by_id(uid)
 
-    # 先格式化所有评论
+    # 批量查询所有评论的点赞数
+    comment_ids = [r["id"] for r in rows]
+    placeholders = ",".join("?" * len(comment_ids))
+    like_count_rows = conn.execute(
+        f"SELECT comment_id, COUNT(*) as cnt FROM public_diary_comment_likes WHERE comment_id IN ({placeholders}) GROUP BY comment_id",
+        comment_ids,
+    ).fetchall()
+    like_count_map = {row["comment_id"]: row["cnt"] for row in like_count_rows}
+
+    # 批量查询当前用户是否点过赞
+    liked_set = set()
+    if viewer_id and comment_ids:
+        liked_rows = conn.execute(
+            f"SELECT comment_id FROM public_diary_comment_likes WHERE comment_id IN ({placeholders}) AND user_id = ?",
+            comment_ids + [viewer_id],
+        ).fetchall()
+        liked_set = {row["comment_id"] for row in liked_rows}
+
+    # 格式化所有评论
     all_comments = {}
     for r in rows:
         d = dict(r)
@@ -730,19 +786,8 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
         else:
             d["reply_to_nickname"] = ""
 
-        # 点赞数 + 是否已赞
-        d["like_count"] = conn.execute(
-            "SELECT COUNT(*) as cnt FROM public_diary_comment_likes WHERE comment_id = ?",
-            (cid,),
-        ).fetchone()["cnt"]
-        if viewer_id:
-            liked = conn.execute(
-                "SELECT id FROM public_diary_comment_likes WHERE comment_id = ? AND user_id = ?",
-                (cid, viewer_id),
-            ).fetchone()
-            d["liked"] = liked is not None
-        else:
-            d["liked"] = False
+        d["like_count"] = like_count_map.get(cid, 0)
+        d["liked"] = cid in liked_set
 
         d["replies"] = []
         all_comments[cid] = d
@@ -752,7 +797,6 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None):
     for cid, c in all_comments.items():
         parent_id = c.get("parent_comment_id")
         root_id = c.get("root_comment_id")
-        # 确定挂载目标：优先 root_comment_id，其次 parent_comment_id
         target_id = root_id if root_id else parent_id
         if target_id and target_id in all_comments:
             all_comments[target_id]["replies"].append(c)
@@ -796,7 +840,7 @@ def save_comment_like(comment_id: int, user_id: int) -> tuple[bool, bool]:
         )
         conn.commit()
         success, already = True, False
-    except Exception:
+    except sqlite3.IntegrityError:
         success, already = True, True
     conn.close()
     return success, already
@@ -983,7 +1027,7 @@ def create_user(username: str, password_hash: str, email: str = "") -> dict | No
         )
         conn.commit()
         user_id = cursor.lastrowid
-    except Exception:
+    except sqlite3.IntegrityError:
         conn.close()
         return None
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -1036,7 +1080,7 @@ def follow_user(follower_id: int, following_id: int) -> bool:
         )
         conn.commit()
         ok = True
-    except Exception:
+    except sqlite3.IntegrityError:
         ok = False
     conn.close()
     return ok
@@ -1651,7 +1695,7 @@ def block_user(blocker_id: int, blocked_id: int, reason: str = '') -> bool:
         )
         conn.commit()
         ok = True
-    except Exception:
+    except sqlite3.IntegrityError:
         ok = False
     conn.close()
     return ok
@@ -1919,6 +1963,10 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None) -> list[d
         (diary_id,),
     ).fetchall()
 
+    if not rows:
+        conn.close()
+        return []
+
     # 收集所有 identity_id
     all_id_ids = set()
     for r in rows:
@@ -1931,6 +1979,24 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None) -> list[d
     id_cache = {}
     for iid in all_id_ids:
         id_cache[iid] = get_treehole_identity_by_id(iid)
+
+    # 批量查询所有回复的点赞数
+    reply_ids = [r["id"] for r in rows]
+    placeholders = ",".join("?" * len(reply_ids))
+    like_count_rows = conn.execute(
+        f"SELECT reply_id, COUNT(*) as cnt FROM treehole_reply_likes WHERE reply_id IN ({placeholders}) GROUP BY reply_id",
+        reply_ids,
+    ).fetchall()
+    like_count_map = {row["reply_id"]: row["cnt"] for row in like_count_rows}
+
+    # 批量查询当前用户是否点过赞
+    liked_set = set()
+    if viewer_id and reply_ids:
+        liked_rows = conn.execute(
+            f"SELECT reply_id FROM treehole_reply_likes WHERE reply_id IN ({placeholders}) AND user_id = ?",
+            reply_ids + [viewer_id],
+        ).fetchall()
+        liked_set = {row["reply_id"] for row in liked_rows}
 
     # 格式化所有回复
     all_replies = {}
@@ -1954,19 +2020,8 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None) -> list[d
             d["reply_to_anon_name"] = ""
         d["reply_to_identity_id"] = reply_to_iid
 
-        # 点赞数 + 是否已赞
-        d["like_count"] = conn.execute(
-            "SELECT COUNT(*) as cnt FROM treehole_reply_likes WHERE reply_id = ?",
-            (rid,),
-        ).fetchone()["cnt"]
-        if viewer_id:
-            liked = conn.execute(
-                "SELECT id FROM treehole_reply_likes WHERE reply_id = ? AND user_id = ?",
-                (rid, viewer_id),
-            ).fetchone()
-            d["liked"] = liked is not None
-        else:
-            d["liked"] = False
+        d["like_count"] = like_count_map.get(rid, 0)
+        d["liked"] = rid in liked_set
 
         d["replies"] = []
         all_replies[rid] = d
@@ -2008,7 +2063,7 @@ def save_treehole_reply_like(reply_id: int, user_id: int) -> tuple[bool, bool]:
         )
         conn.commit()
         success, already = True, False
-    except Exception:
+    except sqlite3.IntegrityError:
         success, already = True, True
     conn.close()
     return success, already
@@ -2062,7 +2117,7 @@ def save_treehole_hug(diary_id: int, user_id: int) -> tuple[bool, bool]:
         )
         conn.commit()
         success, already = True, False
-    except Exception:
+    except sqlite3.IntegrityError:
         success, already = True, True
     conn.close()
     return success, already
