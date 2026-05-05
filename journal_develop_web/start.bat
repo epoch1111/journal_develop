@@ -32,6 +32,7 @@ echo   API 文档: http://localhost:8000/docs
 echo   按 Ctrl+C 停止服务器
 echo.
 
+cd /d "%~dp0"
 %PYTHON% -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 pause
