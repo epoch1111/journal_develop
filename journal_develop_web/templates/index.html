@@ -2367,48 +2367,15 @@
             }
         }
 
-        // 点赞回复时重新渲染（乐观更新 + 重新渲染）
-        function toggleTreeholeReplyLike(replyId) {
-            if (!currentTreeholeDetailData) return;
-            const replies = currentTreeholeDetailData.replies || [];
-            // 递归查找并更新回复
-            function findAndToggle(arr) {
-                for (let r of arr) {
-                    if (r.id === replyId) {
-                        r.liked = !r.liked;
-                        r.like_count = (r.like_count || 0) + (r.liked ? 1 : -1);
-                        if (r.like_count < 0) r.like_count = 0;
-                        return true;
-                    }
-                    if (r.replies && findAndToggle(r.replies)) return true;
-                }
-                return false;
-            }
-            if (findAndToggle(replies)) {
-                renderTreeholeDetail(currentTreeholeDetailData);  // 重新渲染
-            }
-        }
-
-        function renderTreeholeDetail(d) {
-            const moodInfo = MOOD_MAP[d.mood] || MOOD_MAP['😊'];
-            const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
-            const tagHtml = tags.map((t, ti) =>
-                `<span class="sticker-${ti % 5} text-xs font-medium px-2.5 py-1 rounded-xl shadow-sm">#${t.trim()}</span>`
-            ).join(' ');
-            const replies = d.replies || [];
-            let totalReplyCount = 0;
-
-            function renderReplyItem(r, isChild = false) {
-                const liked = !!r.liked;
-                const anonName = escapeHtml(r.anon_name || '匿名小伙伴');
-                const anonAvatar = escapeHtml(r.anon_avatar || '👻');
-                const identityId = r.identity_id || 0;
-                const replyToName = escapeHtml(r.reply_to_anon_name || '');
-                const childReplies = r.replies || [];
-                totalReplyCount++;
-
-                let html = `
-                <div class="th-reply-item ${isChild ? 'ml-8 pl-3 border-l-2 border-purple-100' : ''}" data-reply-id="${r.id}" data-identity-id="${identityId}" data-anon-name="${escapeHtml(anonName)}">
+        // 生成单个回复的 HTML（用于单独渲染）
+        function buildReplyItemHtml(r, isChild = false) {
+            const liked = !!r.liked;
+            const anonName = escapeHtml(r.anon_name || '匿名小伙伴');
+            const anonAvatar = escapeHtml(r.anon_avatar || '👻');
+            const identityId = r.identity_id || 0;
+            const replyToName = escapeHtml(r.reply_to_anon_name || '');
+            return `
+                <div class="th-reply-item ${isChild ? 'ml-8 pl-3 border-l-2 border-purple-100' : ''}" id="reply-${r.id}" data-reply-id="${r.id}" data-identity-id="${identityId}" data-anon-name="${escapeHtml(anonName)}">
                     <div class="flex items-start gap-2.5">
                         <span class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center text-sm shrink-0 shadow-sm select-none">${anonAvatar}</span>
                         <div class="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 flex-1">
@@ -2431,11 +2398,24 @@
                         </div>
                     </div>
                 </div>`;
+        }
 
+        function renderTreeholeDetail(d) {
+            const moodInfo = MOOD_MAP[d.mood] || MOOD_MAP['😊'];
+            const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
+            const tagHtml = tags.map((t, ti) =>
+                `<span class="sticker-${ti % 5} text-xs font-medium px-2.5 py-1 rounded-xl shadow-sm">#${t.trim()}</span>`
+            ).join(' ');
+            const replies = d.replies || [];
+            let totalReplyCount = 0;
+
+            function renderReplyItem(r, isChild = false) {
+                totalReplyCount++;
+                let html = buildReplyItemHtml(r, isChild);
                 // 子回复（二级）
-                if (childReplies.length > 0) {
+                if (r.replies && r.replies.length > 0) {
                     html += '<div class="mt-2">';
-                    childReplies.forEach(cr => { html += renderReplyItem(cr, true); });
+                    r.replies.forEach(cr => { html += renderReplyItem(cr, true); });
                     html += '</div>';
                 }
                 return html;
@@ -2481,40 +2461,6 @@
                 toggleTreeholeHug(d.id, hugBtn, hugBtn.querySelector('i'), thHugCount);
             });
 
-            // 回复点赞按钮（toggle）—— 乐观更新 + API + 回滚
-            treeholeDetailContent.querySelectorAll('.th-reply-like-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const replyId = parseInt(btn.dataset.replyId);
-                    if (!currentTreeholeDetailData) return;
-                    // 保存旧状态用于回滚
-                    const oldReplies = JSON.parse(JSON.stringify(currentTreeholeDetailData.replies || []));
-                    // 乐观更新：立即渲染
-                    toggleTreeholeReplyLike(replyId);
-                    try {
-                        // 找到当前回复的 liked 状态
-                        const findReply = (arr, id) => {
-                            for (let r of arr) {
-                                if (r.id === id) return r;
-                                if (r.replies) { const f = findReply(r.replies, id); if (f) return f; }
-                            }
-                            return null;
-                        };
-                        const reply = findReply(currentTreeholeDetailData.replies || [], replyId);
-                        if (!reply) return;
-                        if (reply.liked) {
-                            await EchoAPI.likeTreeholeReply(replyId);
-                        } else {
-                            await EchoAPI.unlikeTreeholeReply(replyId);
-                        }
-                    } catch (e) {
-                        console.error('回复点赞失败:', e);
-                        // 回滚：恢复旧数据并重新渲染
-                        currentTreeholeDetailData.replies = oldReplies;
-                        renderTreeholeDetail(currentTreeholeDetailData);
-                    }
-                });
-            });
 
             lucide.createIcons();
         }
@@ -2535,7 +2481,7 @@
             if (e.target === treeholeDetailOverlay) closeTreeholeDetail();
         });
 
-        // 树洞详情中回复按钮：事件委托
+        // 树洞详情中回复按钮和点赞按钮：事件委托
         treeholeDetailContent.addEventListener('click', (e) => {
             const replyBtn = e.target.closest('.th-reply-reply-btn');
             if (replyBtn) {
@@ -2552,6 +2498,57 @@
                     thDetailReplyInput.placeholder = `回复 ${anonName}…`;
                     thDetailReplyInput.focus();
                 }
+                return;
+            }
+            // 回复点赞（事件委托）
+            const likeBtn = e.target.closest('.th-reply-like-btn');
+            if (likeBtn) {
+                e.stopPropagation();
+                const replyId = parseInt(likeBtn.dataset.replyId);
+                if (!currentTreeholeDetailData || !replyId) return;
+                const replyEl = document.getElementById('reply-' + replyId);
+                if (!replyEl) return;
+                const findReply = (arr, id) => {
+                    for (let r of arr) {
+                        if (r.id === id) return r;
+                        if (r.replies) { const f = findReply(r.replies, id); if (f) return f; }
+                    }
+                    return null;
+                };
+                const reply = findReply(currentTreeholeDetailData.replies || [], replyId);
+                if (!reply) return;
+                // 乐观更新
+                reply.liked = !reply.liked;
+                reply.like_count = (reply.like_count || 0) + (reply.liked ? 1 : -1);
+                if (reply.like_count < 0) reply.like_count = 0;
+                // 立即更新 DOM（单个回复）- 用 replaceWith 替换整个元素
+                const newEl = document.createElement('div');
+                newEl.innerHTML = buildReplyItemHtml(reply, reply.parent_reply_id > 0);
+                replyEl.replaceWith(newEl.firstElementChild);
+                lucide.createIcons();
+                // 异步调用 API
+                (async () => {
+                    try {
+                        if (reply.liked) {
+                            await EchoAPI.likeTreeholeReply(replyId);
+                        } else {
+                            await EchoAPI.unlikeTreeholeReply(replyId);
+                        }
+                    } catch (err) {
+                        console.error('回复点赞失败:', err);
+                        // 回滚
+                        reply.liked = !reply.liked;
+                        reply.like_count = (reply.like_count || 0) + (reply.liked ? 1 : -1);
+                        if (reply.like_count < 0) reply.like_count = 0;
+                        const rollbackEl = document.getElementById('reply-' + replyId);
+                        if (rollbackEl) {
+                            const rbNew = document.createElement('div');
+                            rbNew.innerHTML = buildReplyItemHtml(reply, reply.parent_reply_id > 0);
+                            rollbackEl.replaceWith(rbNew.firstElementChild);
+                        }
+                        lucide.createIcons();
+                    }
+                })();
             }
         });
 

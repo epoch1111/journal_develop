@@ -111,7 +111,7 @@ window.EchoAPI = {
     },
 
     async fetchTreeholeDetail(id) {
-        const res = await fetch(`/api/treehole/${id}`);
+        const res = await this._authFetch(`/api/treehole/${id}`);
         if (res.status === 404) return null;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
