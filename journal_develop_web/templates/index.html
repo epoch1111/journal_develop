@@ -2466,6 +2466,7 @@
                     const icon = btn.querySelector('i');
                     const countEl = btn.querySelector('.th-reply-like-count');
                     const liked = btn.classList.contains('text-pink-400');
+                    console.log('[Like] clicked replyId=' + replyId + ' liked=' + liked);
                     btn.disabled = true;
                     try {
                         let result;
@@ -2473,16 +2474,39 @@
                             result = await EchoAPI.unlikeTreeholeReply(replyId);
                             btn.classList.remove('text-pink-400');
                             btn.classList.add('text-gray-300');
-                            if (icon) icon.classList.remove('fill-pink-400');
+                            if (icon) {
+                                icon.classList.remove('fill-pink-400');
+                                icon.style.fill = '';
+                            }
                         } else {
                             result = await EchoAPI.likeTreeholeReply(replyId);
                             btn.classList.remove('text-gray-300');
                             btn.classList.add('text-pink-400');
-                            if (icon) icon.classList.add('fill-pink-400');
+                            if (icon) {
+                                icon.classList.add('fill-pink-400');
+                                icon.style.fill = '#fb7185'; // rose-400
+                            }
                         }
+                        console.log('[Like] result=', result);
                         if (countEl) countEl.textContent = result.like_count || 0;
                     } catch (e) {
                         console.error('回复点赞失败:', e);
+                        // 回滚
+                        if (!liked) {
+                            btn.classList.remove('text-pink-400');
+                            btn.classList.add('text-gray-300');
+                            if (icon) {
+                                icon.classList.remove('fill-pink-400');
+                                icon.style.fill = '';
+                            }
+                        } else {
+                            btn.classList.remove('text-gray-300');
+                            btn.classList.add('text-pink-400');
+                            if (icon) {
+                                icon.classList.add('fill-pink-400');
+                                icon.style.fill = '#fb7185';
+                            }
+                        }
                     } finally {
                         btn.disabled = false;
                     }
