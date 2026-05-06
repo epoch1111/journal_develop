@@ -4413,6 +4413,9 @@
             chatInput.value = '';
             await loadChatMessages();
             lucide.createIcons();
+            requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
         }
 
         function backToConvList() {
