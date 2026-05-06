@@ -59,7 +59,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       if (n.id == id) {
         return AppNotification(
           id: n.id, type: n.type, message: n.message,
-          relatedId: n.relatedId, isRead: 1, createdAt: n.createdAt,
+          relatedId: n.relatedId, isRead: true, createdAt: n.createdAt,
         );
       }
       return n;
@@ -73,7 +73,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     final newList = state.notifications.map((n) {
       return AppNotification(
         id: n.id, type: n.type, message: n.message,
-        relatedId: n.relatedId, isRead: 1, createdAt: n.createdAt,
+        relatedId: n.relatedId, isRead: true, createdAt: n.createdAt,
       );
     }).toList();
     state = state.copyWith(notifications: newList, unreadCount: 0);

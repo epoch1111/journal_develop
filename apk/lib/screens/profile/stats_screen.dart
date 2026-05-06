@@ -59,7 +59,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               item['mood'] ?? '',
                               item['count'] ?? 0,
                               item['label'] ?? '',
-                              stats['total_diaries'] ?? 1,
+                              item['percentage'] ?? 0,
                             ))),
                     const SizedBox(height: 24),
                   ],
@@ -89,7 +89,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     _buildMonthlyCalendar(stats['calendar_data']),
                   ],
                   // Recent mood overview
-                  if (moodStats != null && moodStats['recent'] != null) ...[
+                  if (moodStats != null && moodStats['recent_moods'] != null) ...[
                     const SizedBox(height: 24),
                     const Text('最近心情',
                         style: TextStyle(
@@ -100,7 +100,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: (moodStats['recent'] as List)
+                      children: (moodStats['recent_moods'] as List)
                           .map((item) => _buildRecentMood(
                                 item['mood'] ?? '',
                                 item['date'] ?? '',
@@ -252,8 +252,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
-  Widget _buildMoodBar(String mood, int count, String label, int total) {
-    final pct = total > 0 ? count / total : 0.0;
+  Widget _buildMoodBar(String mood, int count, String label, dynamic pct) {
+    final percentage = (pct is int) ? pct.toDouble() : (pct as double? ?? 0.0);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -271,7 +271,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: pct.clamp(0.0, 1.0),
+                value: (percentage / 100).clamp(0.0, 1.0),
                 minHeight: 8,
                 backgroundColor: Colors.grey[100],
                 valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),

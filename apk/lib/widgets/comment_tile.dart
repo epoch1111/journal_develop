@@ -10,6 +10,7 @@ class CommentTile extends StatelessWidget {
   final VoidCallback? onAvatarTap;
   final void Function(Comment)? onReplyTap;
   final VoidCallback? onLikeTap;
+  final VoidCallback? onReportTap;
 
   const CommentTile({
     super.key,
@@ -19,6 +20,7 @@ class CommentTile extends StatelessWidget {
     this.onAvatarTap,
     this.onReplyTap,
     this.onLikeTap,
+    this.onReportTap,
   });
 
   @override
@@ -33,21 +35,7 @@ class CommentTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isChild)
-            Container(
-              width: 32,
-              padding: const EdgeInsets.only(top: 4),
-              child: Container(
-                width: 2,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: isTreehole
-                      ? Colors.purple[100]
-                      : AppTheme.accentLight,
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-            ),
+          if (isChild) const SizedBox(width: 32),
           UserAvatar(
             avatar: avatar,
             size: isChild ? 28 : 32,
@@ -157,6 +145,16 @@ class CommentTile extends StatelessWidget {
                                           : AppTheme.accent)),
                             ),
                           ],
+                          if (onReportTap != null) ...[
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: onReportTap,
+                              child: const Text('举报',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.textMuted)),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -175,6 +173,7 @@ class CommentTile extends StatelessWidget {
                                 onAvatarTap: onAvatarTap,
                                 onReplyTap: onReplyTap,
                                 onLikeTap: onLikeTap,
+                                onReportTap: onReportTap,
                               ))
                           .toList(),
                     ),

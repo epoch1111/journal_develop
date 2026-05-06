@@ -6,7 +6,9 @@ class ProfileService {
 
   Future<User> fetchMyProfile() async {
     final data = await _client.get('/api/profile/me');
-    return User.fromJson(data);
+    // 后端返回 {"ok": true, "user": {...}}
+    final userData = data['user'] ?? data;
+    return User.fromJson(Map<String, dynamic>.from(userData));
   }
 
   Future<Map<String, dynamic>> updateProfile({
@@ -25,6 +27,8 @@ class ProfileService {
 
   Future<User> fetchUserProfile(int userId) async {
     final data = await _client.get('/api/profile/$userId', auth: false);
-    return User.fromJson(data);
+    // 后端返回 {"ok": true, ...} 或直接用户dict
+    final userData = data['user'] ?? data;
+    return User.fromJson(Map<String, dynamic>.from(userData));
   }
 }

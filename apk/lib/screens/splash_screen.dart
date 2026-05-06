@@ -18,11 +18,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _init() async {
-    await ApiClient().init();
+    try {
+      await ApiClient().init();
+    } catch (_) {
+      // 无法初始化，跳到服务器配置
+      if (mounted) Navigator.of(context).pushReplacementNamed('/server-config');
+      return;
+    }
     if (!mounted) return;
     final token = ApiClient().token;
     if (token != null) {
-      await ref.read(authProvider.notifier).fetchCurrentUser();
+      // 5秒超时，防止网络不通时永远卡住
+      try {
+        await Future.any([
+          ref.read(authProvider.notifier).fetchCurrentUser(),
+          Future.delayed(const Duration(seconds: 5)),
+        ]);
+      } catch (_) {
+        // token无效，清除并跳登录
+        await ApiClient().setToken(null);
+      }
     }
     if (!mounted) return;
     final isLoggedIn = ref.read(authProvider).isLoggedIn;

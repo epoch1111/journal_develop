@@ -23,6 +23,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(messageProvider.notifier).connectRealtime();
       ref.read(messageProvider.notifier).fetchConversations();
       ref.read(messageProvider.notifier).fetchUnreadCount();
       ref.read(notificationProvider.notifier).fetchUnreadCount();
@@ -240,12 +241,17 @@ class _ConversationsListScreenState
                                       color: Colors.white, fontSize: 10)),
                             )
                           : null,
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
+                      onTap: () async {
+                        await Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) =>
                               ChatScreen(conversationId: c.id,
-                                  userName: c.otherUserName ?? '用户'),
+                                  userName: c.otherUserName ?? '用户',
+                                  userAvatar: c.otherUserAvatar ?? '🐰'),
                         ));
+                        if (mounted) {
+                          ref.read(messageProvider.notifier).fetchConversations();
+                          ref.read(messageProvider.notifier).fetchUnreadCount();
+                        }
                       },
                     );
                   },

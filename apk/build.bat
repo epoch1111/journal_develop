@@ -51,4 +51,3 @@ echo ========================================
 echo   DONE: echo_release.apk
 echo   OTA: {server}/api/app/download
 echo ========================================
-pause

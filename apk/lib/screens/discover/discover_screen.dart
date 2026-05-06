@@ -26,17 +26,21 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(discoverProvider.notifier).fetchDiaries(refresh: true);
-    });
-    _scrollCtrl.addListener(() {
-      if (_scrollCtrl.position.pixels >=
-          _scrollCtrl.position.maxScrollExtent - 200) {
-        final state = ref.read(discoverProvider);
-        if (!state.isLoading && state.hasMore) {
-          ref.read(discoverProvider.notifier).fetchDiaries();
-        }
+      if (mounted) {
+        ref.read(discoverProvider.notifier).fetchDiaries(refresh: true);
       }
     });
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!mounted) return;
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200) {
+      final state = ref.read(discoverProvider);
+      if (!state.isLoading && state.hasMore) {
+        ref.read(discoverProvider.notifier).fetchDiaries();
+      }
+    }
   }
 
   @override
@@ -124,19 +128,46 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               child: state.isLoading && state.diaries.isEmpty
                   ? const LoadingIndicator(message: '加载中...')
                   : state.diaries.isEmpty
-                      ? state.error != null
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(32),
-                                child: Text('加载失败:\n${state.error}',
-                                    style: const TextStyle(color: AppTheme.danger),
-                                    textAlign: TextAlign.center),
-                              ),
-                            )
-                          : const EmptyState(
-                          icon: Icons.explore_outlined,
-                          title: '暂无公开日记',
-                          subtitle: '还没有人公开发布日记')
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.explore_outlined, size: 48, color: AppTheme.textMuted),
+                                const SizedBox(height: 16),
+                                Text(
+                                  state.error != null
+                                      ? '加载失败:\n${state.error}'
+                                      : '暂无公开日记',
+                                  style: TextStyle(
+                                    color: state.error != null
+                                        ? AppTheme.danger
+                                        : AppTheme.textSecondary,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                if (state.error == null) ...[
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    '还没有人公开发布日记',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textMuted,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () => ref
+                                      .read(discoverProvider.notifier)
+                                      .fetchDiaries(refresh: true),
+                                  child: const Text('重试'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                       : RefreshIndicator(
                           onRefresh: () => ref
                               .read(discoverProvider.notifier)

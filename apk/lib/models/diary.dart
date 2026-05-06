@@ -47,30 +47,51 @@ class Diary {
     this.anonAvatar,
   });
 
+  static int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is bool) return v ? 1 : 0;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  static bool? _toNullableBool(dynamic v) {
+    if (v == null) return null;
+    if (v is bool) return v;
+    if (v is int) return v != 0;
+    if (v is num) return v != 0;
+    if (v is String) {
+      final s = v.toLowerCase().trim();
+      if (s == 'true' || s == '1' || s == 'yes') return true;
+      if (s == 'false' || s == '0' || s == 'no') return false;
+    }
+    return null;
+  }
+
   factory Diary.fromJson(Map<String, dynamic> json) {
     return Diary(
-      id: json['id'] ?? 0,
+      id: _toInt(json['id']),
       createdAt: json['created_at'] ?? '',
       mood: json['mood'] ?? '😊',
       content: json['content'] ?? '',
       aiSummary: json['ai_summary'],
       aiMessage: json['ai_message'],
       tags: json['tags'],
-      isPublic: json['is_public'] ?? 0,
-      hugCount: json['hug_count'] ?? 0,
+      isPublic: _toInt(json['is_public']),
+      hugCount: _toInt(json['hug_count']),
       imageUrl: json['image_url'],
       imageUrls: json['image_urls'] != null
           ? List<String>.from(json['image_urls'])
           : null,
       unlockDate: json['unlock_date'],
-      userId: json['user_id'] ?? 0,
+      userId: _toInt(json['user_id']),
       contentType: json['content_type'] ?? 'diary',
       authorName: json['author_name'],
       authorAvatar: json['author_avatar'],
-      locked: json['locked'],
-      likeCount: json['like_count'],
-      liked: json['liked'],
-      commentCount: json['comment_count'],
+      locked: _toNullableBool(json['locked']),
+      likeCount: json['like_count'] == null ? null : _toInt(json['like_count']),
+      commentCount: json['comment_count'] == null ? null : _toInt(json['comment_count']),
+      liked: _toNullableBool(json['liked']),
       anonName: json['anon_name'],
       anonAvatar: json['anon_avatar'],
     );

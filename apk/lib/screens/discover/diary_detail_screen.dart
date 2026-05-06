@@ -28,9 +28,11 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   Diary? _diary;
   List<Comment> _comments = [];
   bool _loading = true;
+  String? _error;
   final _replyCtrl = TextEditingController();
   int? _replyingTo;
   int? _replyingToUserId;
+  String? _replyingToName;
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   }
 
   Future<void> _load() async {
+    setState(() => _error = null);
     try {
       Diary diary;
       List<Comment> comments;
@@ -47,7 +50,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
         comments = await DiscoverService().fetchComments(widget.diaryId);
       } else {
         diary = await DiaryService().fetchDiaryById(widget.diaryId);
-        comments = await DiscoverService().fetchComments(widget.diaryId);
+        comments = [];
       }
       if (mounted) {
         setState(() {
@@ -56,9 +59,14 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
           _loading = false;
         });
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
-        setState(() => _loading = false);
+        print('DIARY DETAIL ERROR: $e');
+        print('DIARY DETAIL STACK: $st');
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
       }
     }
   }
@@ -75,14 +83,68 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
       setState(() {
         _replyingTo = null;
         _replyingToUserId = null;
+        _replyingToName = null;
       });
       _load();
     } catch (e) {
+      print('COMMENT ERROR: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('评论失败: $e')));
       }
     }
+  }
+
+  Future<void> _toggleCommentLike(Comment comment) async {
+    try {
+      print('LIKE: commentId=${comment.id} liked=${comment.liked}');
+      if (comment.liked == true) {
+        final result = await DiscoverService().unlikeComment(comment.id);
+        print('UNLIKE result: $result');
+      } else {
+        final result = await DiscoverService().likeComment(comment.id);
+        print('LIKE result: $result');
+      }
+      _load();
+    } catch (e, st) {
+      print('LIKE ERROR: $e');
+      print('LIKE STACK: $st');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('操作失败: $e')));
+      }
+    }
+  }
+
+  void _showReportDialog(Comment comment) {
+    final reasons = ['骚扰', '垃圾信息', '色情内容', '暴力内容', '侵犯隐私', '诈骗', '其他'];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('举报评论'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: reasons.map((r) => ListTile(
+            title: Text(r),
+            onTap: () async {
+              Navigator.pop(ctx);
+              try {
+                await DiscoverService().reportComment(comment.id, r);
+                if (mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(const SnackBar(content: Text('举报成功')));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('举报失败: $e')));
+                }
+              }
+            },
+          )).toList(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -100,7 +162,12 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     if (_diary == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('日记')),
-        body: const Center(child: Text('加载失败')),
+        body: Center(
+          child: Text(
+            _error ?? '加载失败',
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+          ),
+        ),
       );
     }
 
@@ -162,6 +229,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                             padding: const EdgeInsets.only(top: 12),
                             child: Wrap(
                               spacing: 6,
+                              runSpacing: 4,
                               children: diary.tags!
                                   .split(',')
                                   .where((t) => t.trim().isNotEmpty)
@@ -214,9 +282,12 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                                   setState(() {
                                     _replyingTo = comment.id;
                                     _replyingToUserId = comment.authorUserId;
+                                    _replyingToName = comment.authorName ?? comment.anonName ?? '用户';
                                   });
-                                  _replyCtrl.text = '回复 ${comment.authorName ?? ''}: ';
+                                  _replyCtrl.clear();
                                 },
+                                onLikeTap: () => _toggleCommentLike(c),
+                                onReportTap: () => _showReportDialog(c),
                               )),
                       ],
                     ),
@@ -240,7 +311,9 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                     maxLines: 3,
                     minLines: 1,
                     decoration: InputDecoration(
-                      hintText: _replyingTo != null ? '回复评论...' : '写评论...',
+                      hintText: _replyingTo != null
+                          ? '回复 $_replyingToName...'
+                          : '写评论...',
                       hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
                       filled: true,
                       fillColor: AppTheme.bg,
@@ -256,6 +329,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                                 setState(() {
                                   _replyingTo = null;
                                   _replyingToUserId = null;
+                                  _replyingToName = null;
                                 });
                                 _replyCtrl.clear();
                               },

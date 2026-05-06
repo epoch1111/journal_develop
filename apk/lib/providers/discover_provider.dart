@@ -3,9 +3,12 @@ import '../models/diary.dart';
 import '../models/comment.dart';
 import '../services/discover_service.dart';
 
+const _unset = Object();
+
 class DiscoverState {
   final List<Diary> diaries;
   final bool isLoading;
+  final bool isLoadingMore;
   final bool hasMore;
   final int page;
   final String? error;
@@ -19,6 +22,7 @@ class DiscoverState {
   const DiscoverState({
     this.diaries = const [],
     this.isLoading = false,
+    this.isLoadingMore = false,
     this.hasMore = true,
     this.page = 1,
     this.error,
@@ -35,26 +39,38 @@ class DiscoverState {
     bool? isLoading,
     bool? hasMore,
     int? page,
-    String? error,
-    String? moodFilter,
-    String? tagFilter,
-    String? keywordFilter,
+    Object? error = _unset,
+    Object? moodFilter = _unset,
+    Object? tagFilter = _unset,
+    Object? keywordFilter = _unset,
     String? feedType,
-    Diary? selectedDiary,
-    List<Comment>? comments,
+    Object? selectedDiary = _unset,
+    Object? comments = _unset,
+    bool? isLoadingMore,
   }) {
     return DiscoverState(
       diaries: diaries ?? this.diaries,
       isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       hasMore: hasMore ?? this.hasMore,
       page: page ?? this.page,
-      error: error,
-      moodFilter: moodFilter,
-      tagFilter: tagFilter,
-      keywordFilter: keywordFilter,
+      error: identical(error, _unset) ? this.error : error as String?,
+      moodFilter: identical(moodFilter, _unset)
+          ? this.moodFilter
+          : moodFilter as String?,
+      tagFilter: identical(tagFilter, _unset)
+          ? this.tagFilter
+          : tagFilter as String?,
+      keywordFilter: identical(keywordFilter, _unset)
+          ? this.keywordFilter
+          : keywordFilter as String?,
       feedType: feedType ?? this.feedType,
-      selectedDiary: selectedDiary,
-      comments: comments,
+      selectedDiary: identical(selectedDiary, _unset)
+          ? this.selectedDiary
+          : selectedDiary as Diary?,
+      comments: identical(comments, _unset)
+          ? this.comments
+          : comments as List<Comment>?,
     );
   }
 }
@@ -68,6 +84,7 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     if (state.isLoading) return;
     final page = refresh ? 1 : state.page;
     state = state.copyWith(isLoading: true, error: null);
+    print('DISCOVER PROVIDER: fetchDiaries refresh=$refresh page=$page moodFilter=${state.moodFilter}');
     try {
       final result = await _service.fetchPublicDiaries(
         page: page,
@@ -85,24 +102,40 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
         hasMore: result['has_more'] ?? false,
         page: refresh ? 2 : page + 1,
       );
-    } catch (e) {
-      print('DISCOVER fetchDiaries ERROR: $e');
+    } catch (e, st) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      print('DISCOVER ERROR: $e');
+      print('DISCOVER STACK: $st');
     }
   }
 
   void setMoodFilter(String? mood) {
-    state = state.copyWith(moodFilter: mood, diaries: [], page: 1, hasMore: true);
+    state = state.copyWith(
+      moodFilter: mood,
+      page: 1,
+      hasMore: true,
+      feedType: 'all',
+    );
     fetchDiaries(refresh: true);
   }
 
   void setTagFilter(String? tag) {
-    state = state.copyWith(tagFilter: tag, diaries: [], page: 1, hasMore: true);
+    state = state.copyWith(
+      tagFilter: tag,
+      page: 1,
+      hasMore: true,
+      feedType: 'all',
+    );
     fetchDiaries(refresh: true);
   }
 
   void setKeywordFilter(String? keyword) {
-    state = state.copyWith(keywordFilter: keyword, diaries: [], page: 1, hasMore: true);
+    state = state.copyWith(
+      keywordFilter: keyword,
+      page: 1,
+      hasMore: true,
+      feedType: 'all',
+    );
     fetchDiaries(refresh: true);
   }
 

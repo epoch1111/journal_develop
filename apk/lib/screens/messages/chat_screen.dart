@@ -9,10 +9,12 @@ import '../../widgets/loading_indicator.dart';
 class ChatScreen extends ConsumerStatefulWidget {
   final int conversationId;
   final String userName;
+  final String userAvatar;
   const ChatScreen({
     super.key,
     required this.conversationId,
     required this.userName,
+    this.userAvatar = '🐰',
   });
 
   @override
@@ -23,18 +25,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(messageProvider.notifier)
-          .fetchMessages(widget.conversationId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final notifier = ref.read(messageProvider.notifier);
+      notifier.openConversation(widget.conversationId);
+      await notifier.fetchMessages(widget.conversationId);
+      await notifier.markRead(widget.conversationId);
+      _scrollToBottom();
     });
   }
 
   @override
   void dispose() {
+    ref.read(messageProvider.notifier).closeConversation();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -43,10 +57,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send() async {
     final content = _msgCtrl.text.trim();
     if (content.isEmpty) return;
-    await ref
+
+    final ok = await ref
         .read(messageProvider.notifier)
         .sendMessage(widget.conversationId, content);
+
+    if (!mounted) return;
+
+    if (!ok) {
+      final err = ref.read(messageProvider).error ?? '发送失败';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err)),
+      );
+      return;
+    }
+
     _msgCtrl.clear();
+
+    await ref.read(messageProvider.notifier).fetchConversations();
+    await ref.read(messageProvider.notifier).fetchUnreadCount();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
@@ -90,7 +120,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (!isMe) ...[
-                              UserAvatar(avatar: '🐰', size: 30),
+                              UserAvatar(avatar: widget.userAvatar, size: 30),
                               const SizedBox(width: 8),
                             ],
                             Flexible(

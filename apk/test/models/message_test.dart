@@ -17,7 +17,7 @@ void main() {
       expect(m.senderId, 2);
       expect(m.content, '你好！');
       expect(m.createdAt, '2025-01-16 12:00:00');
-      expect(m.isRead, 0);
+      expect(m.isRead, false);
     });
 
     test('handles missing fields with defaults', () {
@@ -27,7 +27,7 @@ void main() {
       expect(m.senderId, 0);
       expect(m.content, '');
       expect(m.createdAt, '');
-      expect(m.isRead, 0);
+      expect(m.isRead, false);
     });
 
     test('senderId is key for chat bubble alignment', () {
@@ -46,12 +46,12 @@ void main() {
       final unread = ChatMessage.fromJson({
         'id': 1, 'conversation_id': 1, 'sender_id': 1, 'content': '', 'created_at': '', 'is_read': 0,
       });
-      expect(unread.isRead, 0);
+      expect(unread.isRead, false);
 
       final read = ChatMessage.fromJson({
         'id': 2, 'conversation_id': 1, 'sender_id': 1, 'content': '', 'created_at': '', 'is_read': 1,
       });
-      expect(read.isRead, 1);
+      expect(read.isRead, true);
     });
   });
 }

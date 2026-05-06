@@ -108,10 +108,14 @@ class ApiClient {
       throw AuthException('登录已过期，请重新登录');
     }
     if (response.statusCode >= 400) {
-      final body =
-          response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      final detail = body['detail'] ?? '请求失败 (${response.statusCode})';
-      throw ApiException(detail.toString());
+      String message = response.body;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          message = (decoded['detail'] ?? decoded['message'] ?? response.body).toString();
+        }
+      } catch (_) {}
+      throw ApiException(message);
     }
     if (response.body.isEmpty) return {'ok': true};
     final decoded = jsonDecode(response.body);

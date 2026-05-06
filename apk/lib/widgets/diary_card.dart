@@ -127,7 +127,8 @@ class DiaryCard extends StatelessWidget {
                           ),
                     if (diary.aiSummary != null &&
                         diary.aiSummary!.isNotEmpty)
-                      Expanded(
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
                         child: Text(diary.aiSummary!,
                             style: const TextStyle(
                                 fontSize: 11,

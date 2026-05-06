@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme.dart';
+import '../../providers/message_provider.dart';
 import '../../services/message_service.dart';
-import '../../services/api_client.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/loading_indicator.dart';
 import '../../widgets/empty_state.dart';
@@ -35,28 +35,40 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
           _loading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载失败: $e')),
+        );
+      }
     }
   }
 
   Future<void> _startChat(Map<String, dynamic> user) async {
     try {
-      final data = await ApiClient().post('/api/messages/conversations',
-          body: {'user_id': user['id']});
-      final convId = data['conversation']?['id'];
-      if (convId != null && mounted) {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            conversationId: convId,
-            userName: user['nickname'] ?? user['username'] ?? '用户',
-          ),
-        ));
+      final conversation = await MessageService().createConversation(user['id']);
+
+      if (!mounted) return;
+
+      await ref.read(messageProvider.notifier).fetchConversations();
+      await ref.read(messageProvider.notifier).fetchUnreadCount();
+
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          conversationId: conversation.id,
+          userName: user['nickname'] ?? user['username'] ?? '用户',
+        ),
+      ));
+
+      if (mounted) {
+        await ref.read(messageProvider.notifier).fetchConversations();
+        await ref.read(messageProvider.notifier).fetchUnreadCount();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('创建会话失败: $e')));
+            .showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }

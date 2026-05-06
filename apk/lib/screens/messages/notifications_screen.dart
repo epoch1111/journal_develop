@@ -62,25 +62,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: n.isRead == 0 ? AppTheme.accentLight : AppTheme.bg,
+                          color: n.isRead ? AppTheme.accentLight : AppTheme.bg,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           _iconForType(n.type),
                           size: 18,
-                          color: n.isRead == 0 ? AppTheme.accent : AppTheme.textSecondary,
+                          color: n.isRead ? AppTheme.accent : AppTheme.textSecondary,
                         ),
                       ),
                       title: Text(n.message,
                           style: TextStyle(
                               fontSize: 14,
                               color: AppTheme.textPrimary,
-                              fontWeight: n.isRead == 0
+                              fontWeight: n.isRead
                                   ? FontWeight.w600
                                   : FontWeight.normal)),
                       subtitle: Text(_formatTime(n.createdAt),
                           style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                      trailing: n.isRead == 0
+                      trailing: n.isRead
                           ? Container(
                               width: 8,
                               height: 8,
@@ -90,7 +90,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             )
                           : null,
                       onTap: () {
-                        if (n.isRead == 0) {
+                        if (n.isRead) {
                           ref
                               .read(notificationProvider.notifier)
                               .markRead(n.id);
