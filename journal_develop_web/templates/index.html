@@ -4566,6 +4566,7 @@
                 await EchoAPI.sendMessage(currentConvId, { content });
                 chatInput.value = '';
                 await loadChatMessages();
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             } catch (e) {
                 if (e.message && e.message.includes('403')) {
                     showToast('由于安全设置，暂时不能发送消息');
