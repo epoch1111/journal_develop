@@ -3520,9 +3520,9 @@
                 const commentId = parseInt(replyBtn.dataset.commentId);
                 const userId = parseInt(replyBtn.dataset.userId);
                 const authorName = replyBtn.dataset.authorName || '';
-                if (commentId && userId) {
+                if (commentId) {
                     discReplyToCommentId = commentId;
-                    discReplyToUserId = userId;
+                    discReplyToUserId = userId || null;
                     discReplyToNickname = authorName;
                     discReplyTargetName.textContent = authorName;
                     discReplyIndicator.classList.remove('hidden');
