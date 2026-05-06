@@ -130,6 +130,13 @@ def get_public_diary_detail(diary_id: int, client_id: str = None, viewer_id: int
     diary = db_get_public(diary_id)
     if not diary:
         raise HTTPException(status_code=404, detail="日记不存在或不是公开日记")
+
+    if viewer_id:
+        from services.safety_service import check_block_or_raise
+        owner = diary.get("user_id")
+        if owner:
+            check_block_or_raise(viewer_id, owner)
+
     _attach_mood_color(diary)
     images = [img["image_url"] for img in get_diary_images(diary_id)]
     result = _format_public_diary(diary, client_id, images)

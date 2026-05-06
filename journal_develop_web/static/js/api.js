@@ -29,6 +29,12 @@ window.EchoAPI = {
             window.EchoAuth && window.EchoAuth.showLogin();
             throw new Error('请先登录');
         }
+        if (!res.ok) {
+            const text = await res.text();
+            let detail = text;
+            try { detail = JSON.parse(text).detail || text; } catch (_) {}
+            throw new Error(detail);
+        }
         return res;
     },
 
@@ -201,7 +207,7 @@ window.EchoAPI = {
 
     async fetchPublicDiaryById(id, clientId) {
         const qs = clientId ? `?client_id=${clientId}` : '';
-        const res = await fetch(`/api/public/diaries/${id}${qs}`);
+        const res = await this._authFetch(`/api/public/diaries/${id}${qs}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },
@@ -242,14 +248,16 @@ window.EchoAPI = {
 
     async likeComment(commentId) {
         const res = await this._authFetch(`/api/public/diaries/comments/${commentId}/like`, { method: 'POST' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
+        return data;
     },
 
     async unlikeComment(commentId) {
         const res = await this._authFetch(`/api/public/diaries/comments/${commentId}/like`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
+        return data;
     },
 
     // ===== 用户主页 =====

@@ -45,6 +45,7 @@ window.EchoRealtime = {
         this.socket.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
+                console.log('[WS] received payload type:', payload.type, 'full:', payload);
                 this.handleMessage(payload);
             } catch (e) {
                 console.warn('[WS] 消息解析失败:', e.message);
@@ -157,8 +158,11 @@ window.EchoRealtime = {
         const convId = payload.conversation_id;
         const msgId = msg.id;
 
+        console.log('[WS] _onNewMessage received:', { convId, msgId, currentConvId, currentConvIdType: typeof currentConvId });
+
         // 检查是否已在聊天窗口
-        const isCurrentChat = (typeof currentConvId !== 'undefined' && currentConvId === convId);
+        const isCurrentChat = (currentConvId != null && currentConvId === convId);
+        console.log('[WS] isCurrentChat check:', { currentConvId, convId, isCurrentChat });
         const chatMessagesEl = document.getElementById('chatMessages');
 
         if (isCurrentChat && chatMessagesEl && chatMessagesEl.style.display !== 'none') {

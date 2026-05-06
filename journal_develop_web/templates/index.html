@@ -741,6 +741,20 @@
                           class="w-full h-full resize-none text-[16px] text-gray-700 leading-relaxed placeholder-gray-300 bg-transparent"
                           placeholder="今天发生了什么，把它扔进大海吧…&#10;你的故事会漂流到另一个陌生人手中。"></textarea>
             </div>
+            <!-- 图片工具栏 + 预览 -->
+            <input type="file" id="treeholeImageFileInput" accept="image/*" class="hidden" multiple>
+            <div class="shrink-0 px-6 pb-1 flex items-center gap-2">
+                <button id="btnTreeholePickImage"
+                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 text-gray-400 text-xs
+                               hover:bg-gray-100 hover:text-gray-500 active:scale-95 transition-all select-none">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                    添加图片
+                </button>
+                <span id="treeholeImageUploadStatus" class="text-[10px] text-gray-300 hidden"></span>
+            </div>
+            <div id="treeholeImagePreviewArea" class="shrink-0 hidden px-6 pb-2">
+                <div id="treeholeImageThumbnails" class="flex flex-wrap gap-2"></div>
+            </div>
             <!-- 底部提交 -->
             <div class="shrink-0 px-6 pb-8 pt-3">
                 <button id="btnSubmitTreehole"
@@ -1406,6 +1420,13 @@
         const btnSubmitTreehole       = document.getElementById('btnSubmitTreehole');
         const treeholeComposeContent  = document.getElementById('treeholeComposeContent');
         const treeholeMoodBtns        = document.querySelectorAll('.treehole-mood-btn');
+        // 树洞图片上传
+        const treeholeImageFileInput   = document.getElementById('treeholeImageFileInput');
+        const btnTreeholePickImage     = document.getElementById('btnTreeholePickImage');
+        const treeholeImageUploadStatus = document.getElementById('treeholeImageUploadStatus');
+        const treeholeImagePreviewArea  = document.getElementById('treeholeImagePreviewArea');
+        const treeholeImageThumbnails  = document.getElementById('treeholeImageThumbnails');
+        let treeholeImageUrls = [];
         // 树洞详情弹窗
         const treeholeDetailOverlay    = document.getElementById('treeholeDetailOverlay');
         const btnCloseTreeholeDetail   = document.getElementById('btnCloseTreeholeDetail');
@@ -2105,6 +2126,9 @@
         function closeTreeholeCompose() {
             treeholeComposeOverlay.classList.add('opacity-0', 'pointer-events-none');
             treeholeComposeOverlay.classList.remove('opacity-100', 'pointer-events-auto');
+            treeholeImageUrls = [];
+            treeholeImagePreviewArea.classList.add('hidden');
+            treeholeImageUploadStatus.classList.add('hidden');
         }
 
         btnTreeholeSend.addEventListener('click', openTreeholeCompose);
@@ -2120,6 +2144,58 @@
             });
         });
 
+        // 树洞添加图片
+        btnTreeholePickImage.addEventListener('click', () => treeholeImageFileInput.click());
+
+        function renderTreeholeThumbnails() {
+            treeholeImageThumbnails.innerHTML = treeholeImageUrls.map((url, i) => `
+                <div class="relative inline-block">
+                    <img src="${url}" class="h-20 rounded-xl object-cover shadow-sm border border-gray-100" alt="">
+                    <button class="treehole-img-remove-btn absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700/70 text-white text-[10px] flex items-center justify-center hover:bg-gray-800/80 active:scale-95 transition-all" data-index="${i}">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `).join('');
+            if (treeholeImageUrls.length > 0) {
+                treeholeImagePreviewArea.classList.remove('hidden');
+                btnTreeholePickImage.innerHTML = '<i data-lucide="image" class="w-4 h-4"></i> 继续添加';
+            } else {
+                treeholeImagePreviewArea.classList.add('hidden');
+                btnTreeholePickImage.innerHTML = '<i data-lucide="image" class="w-4 h-4"></i> 添加图片';
+            }
+            treeholeImageThumbnails.querySelectorAll('.treehole-img-remove-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    treeholeImageUrls.splice(idx, 1);
+                    renderTreeholeThumbnails();
+                });
+            });
+        }
+
+        treeholeImageFileInput.addEventListener('change', async () => {
+            const file = treeholeImageFileInput.files[0];
+            if (!file) return;
+            treeholeImageUploadStatus.textContent = '压缩上传中...';
+            treeholeImageUploadStatus.classList.remove('hidden');
+            btnTreeholePickImage.disabled = true;
+            try {
+                const blob = await compressImage(file);
+                const data = await EchoAPI.uploadImage(blob);
+                treeholeImageUrls.push(data.url);
+                renderTreeholeThumbnails();
+                treeholeImageUploadStatus.textContent = '已上传';
+                treeholeImageUploadStatus.classList.remove('text-gray-300');
+                treeholeImageUploadStatus.classList.add('text-emerald-500');
+            } catch (e) {
+                console.error('树洞图片上传失败:', e);
+                treeholeImageUploadStatus.textContent = '上传失败';
+                treeholeImageUploadStatus.classList.add('text-red-400');
+            } finally {
+                btnTreeholePickImage.disabled = false;
+                treeholeImageFileInput.value = '';
+            }
+        });
+
         btnSubmitTreehole.addEventListener('click', async () => {
             const content = treeholeComposeContent.value.trim();
             if (!content) { alert('先写点什么吧～'); return; }
@@ -2128,7 +2204,8 @@
             btnSubmitTreehole.disabled = true;
             btnSubmitTreehole.innerHTML = '<span class="loader w-5 h-5 border-2 border-white border-t-transparent rounded-full inline-block"></span> 投递中...';
             try {
-                await EchoAPI.createTreehole({ mood, content, tags: '' });
+                await EchoAPI.createTreehole({ mood, content, tags: '', image_urls: treeholeImageUrls });
+                treeholeImageUrls = [];
                 closeTreeholeCompose();
                 showToast('🫧 漂流瓶已投递，它将漂流到另一个陌生人手中');
                 await loadTreehole();
@@ -3373,7 +3450,7 @@
                 e.stopPropagation();
                 const commentId = parseInt(likeBtn.dataset.commentId);
                 if (!commentId) return;
-                const liked = likeBtn.querySelector('i').classList.contains('fill-pink-400');
+                const liked = likeBtn.classList.contains('text-pink-400');
                 try {
                     if (liked) {
                         await EchoAPI.unlikeComment(commentId);
@@ -3381,17 +3458,20 @@
                         await EchoAPI.likeComment(commentId);
                     }
                     // 重新加载评论列表以获取最新 like_count 和 liked 状态
-                    if (discCurrentDiaryId) {
+                    if (discCurrentDiaryId && discCurrentData) {
                         const updatedComments = await EchoAPI.fetchPublicDiaryComments(discCurrentDiaryId);
-                        if (discCurrentData) {
+                        if (Array.isArray(updatedComments)) {
                             discCurrentData.comments = updatedComments;
                             const detailHtml = renderDiscDetail(discCurrentData);
-                            discDetailContent.innerHTML = detailHtml;
-                            if (typeof lucide !== 'undefined') lucide.createIcons();
+                            if (detailHtml) {
+                                discDetailContent.innerHTML = detailHtml;
+                            }
                         }
                     }
                 } catch (err) {
-                    console.error('评论点赞失败:', err);
+                    const msg = (err && err.message) || String(err);
+                    console.error('评论点赞失败:', err, msg);
+                    alert('点赞失败: ' + msg);
                 }
             }
         });
@@ -4350,12 +4430,21 @@
         async function loadChatMessages() {
             if (!currentConvId) return;
             try {
-                const data = await EchoAPI.fetchMessages(currentConvId, { page: chatMsgPage, page_size: 30 });
-                const msgs = data.items || [];
-                if (msgs.length === 0) {
+                const allMsgs = [];
+                let page = 1;
+                let hasMore = true;
+                while (hasMore) {
+                    const data = await EchoAPI.fetchMessages(currentConvId, { page, page_size: 30 });
+                    const items = data.items || [];
+                    allMsgs.push(...items);
+                    hasMore = data.has_more === true;
+                    page++;
+                    if (!data.has_more) break;
+                }
+                if (allMsgs.length === 0) {
                     chatMessages.innerHTML = '<p class="text-xs text-gray-300 text-center py-10">还没有聊天记录<br>从一句温柔的问候开始吧</p>';
                 } else {
-                    renderChatMessages(msgs);
+                    renderChatMessages(allMsgs);
                 }
             } catch (e) {
                 chatMessages.innerHTML = '<p class="text-xs text-gray-400 text-center py-10">加载失败</p>';
