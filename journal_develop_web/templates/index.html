@@ -3533,31 +3533,46 @@
 
             const likeBtn = e.target.closest('.disc-comment-like-btn');
             if (likeBtn) {
+                e.preventDefault();
                 e.stopPropagation();
                 const commentId = parseInt(likeBtn.dataset.commentId);
                 if (!commentId) return;
-                const liked = likeBtn.classList.contains('text-pink-400');
-                try {
-                    if (liked) {
-                        await EchoAPI.unlikeComment(commentId);
-                    } else {
-                        await EchoAPI.likeComment(commentId);
-                    }
-                    // 重新加载评论列表以获取最新 like_count 和 liked 状态
-                    if (discCurrentDiaryId && discCurrentData) {
-                        const updatedComments = await EchoAPI.fetchPublicDiaryComments(discCurrentDiaryId);
-                        if (Array.isArray(updatedComments)) {
-                            discCurrentData.comments = updatedComments;
-                            const detailHtml = renderDiscDetail(discCurrentData);
-                            if (detailHtml) {
-                                discDetailContent.innerHTML = detailHtml;
-                            }
+                // 递归查找评论（含无限层级子回复）
+                function findComment(comments, id) {
+                    for (const c of comments) {
+                        if (c.id === id) return c;
+                        if (c.replies?.length) {
+                            const found = findComment(c.replies, id);
+                            if (found) return found;
                         }
                     }
+                    return null;
+                }
+                const comment = findComment(discCurrentData?.comments || [], commentId);
+                if (!comment) return;
+                const oldLiked = !!comment.liked;
+                const oldCount = comment.like_count || 0;
+                // 立即变
+                comment.liked = !oldLiked;
+                comment.like_count = oldLiked ? Math.max(0, oldCount - 1) : oldCount + 1;
+                const detailHtml = renderDiscDetail(discCurrentData);
+                if (detailHtml) discDetailContent.innerHTML = detailHtml;
+                try {
+                    const result = oldLiked
+                        ? await EchoAPI.unlikeComment(commentId)
+                        : await EchoAPI.likeComment(commentId);
+                    // 用后端真实结果校准
+                    comment.liked = !!result.liked;
+                    comment.like_count = result.like_count ?? comment.like_count;
+                    const syncedHtml = renderDiscDetail(discCurrentData);
+                    if (syncedHtml) discDetailContent.innerHTML = syncedHtml;
                 } catch (err) {
-                    const msg = (err && err.message) || String(err);
-                    console.error('评论点赞失败:', err, msg);
-                    alert('点赞失败: ' + msg);
+                    // 回滚
+                    comment.liked = oldLiked;
+                    comment.like_count = oldCount;
+                    const rollbackHtml = renderDiscDetail(discCurrentData);
+                    if (rollbackHtml) discDetailContent.innerHTML = rollbackHtml;
+                    alert('点赞失败: ' + (err.message || err));
                 }
             }
         });
