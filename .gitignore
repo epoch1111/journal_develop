@@ -19,5 +19,8 @@ dist/
 uploads/
 export_users/
 
+# APK 构建产物
+*.apk
+
 # 环境变量
 .env

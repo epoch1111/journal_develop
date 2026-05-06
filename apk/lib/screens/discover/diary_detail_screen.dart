@@ -30,6 +30,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   bool _loading = true;
   final _replyCtrl = TextEditingController();
   int? _replyingTo;
+  int? _replyingToUserId;
 
   @override
   void initState() {
@@ -69,9 +70,12 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     final clientId = 'user:${auth.user?.id ?? '0'}';
     try {
       await DiscoverService().commentOnDiary(widget.diaryId, clientId, content,
-          parentReplyId: _replyingTo);
+          parentReplyId: _replyingTo, replyToUserId: _replyingToUserId);
       _replyCtrl.clear();
-      setState(() => _replyingTo = null);
+      setState(() {
+        _replyingTo = null;
+        _replyingToUserId = null;
+      });
       _load();
     } catch (e) {
       if (mounted) {
@@ -206,9 +210,12 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                                         );
                                       }
                                     : null,
-                                onReplyTap: () {
-                                  setState(() => _replyingTo = c.id);
-                                  _replyCtrl.text = '回复 ${c.authorName ?? ''}: ';
+                                onReplyTap: (comment) {
+                                  setState(() {
+                                    _replyingTo = comment.id;
+                                    _replyingToUserId = comment.authorUserId;
+                                  });
+                                  _replyCtrl.text = '回复 ${comment.authorName ?? ''}: ';
                                 },
                               )),
                       ],
@@ -246,7 +253,10 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                           ? IconButton(
                               icon: const Icon(Icons.close, size: 16),
                               onPressed: () {
-                                setState(() => _replyingTo = null);
+                                setState(() {
+                                  _replyingTo = null;
+                                  _replyingToUserId = null;
+                                });
                                 _replyCtrl.clear();
                               },
                             )

@@ -43,12 +43,13 @@ class DiaryNotifier extends StateNotifier<DiaryState> {
 
   DiaryNotifier() : super(const DiaryState());
 
-  Future<void> fetchDiaries({String? date}) async {
+  Future<void> fetchDiaries({String? date, String? keyword}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final diaries = await _service.fetchDiaries(date: date);
+      final diaries = await _service.fetchDiaries(date: date, keyword: keyword);
       state = state.copyWith(diaries: diaries, isLoading: false);
     } catch (e) {
+      print('DIARY fetchDiaries ERROR: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }

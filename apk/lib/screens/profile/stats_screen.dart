@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme.dart';
 import '../../providers/diary_provider.dart';
 import '../../widgets/loading_indicator.dart';
+import 'date_diaries_screen.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -12,6 +13,9 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
+  int _calYear = DateTime.now().year;
+  int _calMonth = DateTime.now().month - 1; // 0-indexed
+
   @override
   void initState() {
     super.initState();
@@ -79,29 +83,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       ),
                     ),
                   ],
-                  // Calendar heatmap
+                  // Monthly calendar
                   if (stats != null && stats['calendar_data'] != null) ...[
                     const SizedBox(height: 24),
-                    const Text('日记日历',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: (stats['calendar_data'] as List)
-                          .map((item) => _buildCalendarDot(
-                                item['moods'] is List && (item['moods'] as List).isNotEmpty
-                                    ? (item['moods'] as List).first.toString()
-                                    : '',
-                                item['count'] ?? 0,
-                              ))
-                          .toList(),
-                    ),
+                    _buildMonthlyCalendar(stats['calendar_data']),
                   ],
-                  // Mood stats
+                  // Recent mood overview
                   if (moodStats != null && moodStats['recent'] != null) ...[
                     const SizedBox(height: 24),
                     const Text('最近心情',
@@ -132,6 +119,136 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildMonthlyCalendar(dynamic calendarData) {
+    // calendar_data is Map<String, String>: {"2026-05-05": "😊", ...}
+    final Map<String, String> calMap;
+    if (calendarData is Map) {
+      calMap = calendarData.map((k, v) => MapEntry(k.toString(), v.toString()));
+    } else if (calendarData is List) {
+      calMap = {};
+      for (final item in calendarData) {
+        final key = item['date']?.toString() ?? '';
+        final val = item['mood']?.toString() ?? '';
+        if (key.isNotEmpty) calMap[key] = val;
+      }
+    } else {
+      calMap = {};
+    }
+
+    final monthLabel = '${_calYear}年${_calMonth + 1}月';
+    final daysInMonth = DateTime(_calYear, _calMonth + 2, 0).day;
+    // Monday = 0, Sunday = 6 for first day of month
+    final firstDow = (DateTime(_calYear, _calMonth + 1, 1).weekday + 6) % 7;
+
+    const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        boxShadow: [AppTheme.cardShadow],
+      ),
+      child: Column(
+        children: [
+          // Month header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () => setState(() {
+                  _calMonth--;
+                  if (_calMonth < 0) { _calMonth = 11; _calYear--; }
+                }),
+                child: const Icon(Icons.chevron_left, color: AppTheme.textSecondary),
+              ),
+              Text(monthLabel,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary)),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _calMonth++;
+                  if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+                }),
+                child: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Weekday header
+          Row(
+            children: weekDays.map((d) {
+              return SizedBox(
+                width: (MediaQuery.of(context).size.width - 72) / 7,
+                child: Center(
+                  child: Text(d,
+                      style: const TextStyle(
+                          fontSize: 10, color: AppTheme.textSecondary)),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 4),
+          // Day grid
+          Wrap(
+            children: [
+              // Leading blanks
+              for (var i = 0; i < firstDow; i++)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 72) / 7,
+                  height: 36,
+                ),
+              // Days
+              for (var day = 1; day <= daysInMonth; day++)
+                _buildDayCell(day, daysInMonth, calMap),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('点击有心情的日期查看当天日记',
+              style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayCell(int day, int daysInMonth, Map<String, String> calMap) {
+    final cellWidth = (MediaQuery.of(context).size.width - 72) / 7;
+    final dateKey =
+        '${_calYear}-${(_calMonth + 1).toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+    final mood = calMap[dateKey];
+
+    if (mood != null) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => DateDiariesScreen(date: dateKey, mood: mood),
+          ));
+        },
+        child: Container(
+          width: cellWidth,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppTheme.accentLight,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Text(mood, style: const TextStyle(fontSize: 16)),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: cellWidth,
+      height: 36,
+      child: Center(
+        child: Text('$day',
+            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+      ),
     );
   }
 
@@ -177,20 +294,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 fontWeight: FontWeight.w600,
                 color: AppTheme.textPrimary)),
       ],
-    );
-  }
-
-  Widget _buildCalendarDot(String mood, int count) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: count > 0 ? AppTheme.accentLight : Colors.grey[100],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: Text(mood.isNotEmpty ? mood : '',
-          style: const TextStyle(fontSize: 12)),
     );
   }
 

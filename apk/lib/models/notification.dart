@@ -19,8 +19,8 @@ class AppNotification {
     return AppNotification(
       id: json['id'] ?? 0,
       type: json['type'] ?? '',
-      message: json['message'] ?? '',
-      relatedId: json['related_id']?.toString(),
+      message: json['content'] ?? json['title'] ?? '',
+      relatedId: json['entity_id']?.toString(),
       isRead: json['is_read'] ?? 0,
       createdAt: json['created_at'] ?? '',
     );

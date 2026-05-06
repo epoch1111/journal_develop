@@ -141,7 +141,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                         contentPadding:
                             const EdgeInsets.symmetric(vertical: 8),
                       ),
-                      onSubmitted: (v) {},
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (v) {
+                        ref.read(diaryProvider.notifier).fetchDiaries(keyword: v);
+                      },
                     ),
                   ),
                 ],
@@ -152,7 +155,16 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
               child: diaryState.isLoading
                   ? const LoadingIndicator(message: '加载日记中...')
                   : diaryState.diaries.isEmpty
-                      ? const EmptyState(
+                      ? diaryState.error != null
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text('加载失败:\n${diaryState.error}',
+                                    style: const TextStyle(color: AppTheme.danger),
+                                    textAlign: TextAlign.center),
+                              ),
+                            )
+                          : const EmptyState(
                           icon: Icons.book_outlined,
                           title: '还没有日记',
                           subtitle: '点击右上角 + 开始写日记吧')

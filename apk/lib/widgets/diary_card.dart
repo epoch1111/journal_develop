@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/diary.dart';
 import '../config.dart';
 import '../theme.dart';
+import '../services/api_client.dart';
 import 'user_avatar.dart';
 
 class DiaryCard extends StatelessWidget {
@@ -230,6 +231,11 @@ class DiaryCard extends StatelessWidget {
     );
   }
 
+  String _fullUrl(String url) {
+    if (url.startsWith('http')) return url;
+    return '${ApiClient().baseUrl}$url';
+  }
+
   Widget _buildImageGallery(List<String> urls) {
     if (urls.isEmpty) return const SizedBox.shrink();
     final count = urls.length.clamp(1, 9);
@@ -250,7 +256,7 @@ class DiaryCard extends StatelessWidget {
           ),
           itemCount: count,
           itemBuilder: (context, index) => Image.network(
-            urls[index],
+            _fullUrl(urls[index]),
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Container(
                 color: Colors.grey[100],

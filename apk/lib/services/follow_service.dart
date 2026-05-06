@@ -19,20 +19,20 @@ class FollowService {
 
   Future<List<User>> fetchFollowing() async {
     final data = await _client.get('/api/me/following');
-    final list = data['following'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((u) => User.fromJson(u)).toList();
   }
 
   Future<List<User>> fetchFollowers() async {
     final data = await _client.get('/api/me/followers');
-    final list = data['followers'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((u) => User.fromJson(u)).toList();
   }
 
   Future<List<Diary>> fetchFollowingFeed({int page = 1}) async {
     final data = await _client.get('/api/me/following-feed',
         queryParams: {'page': page.toString()});
-    final list = data['diaries'] as List? ?? [];
+    final list = data['items'] as List? ?? [];
     return list.map((d) => Diary.fromJson(d)).toList();
   }
 }

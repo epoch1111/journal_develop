@@ -86,6 +86,7 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
         page: refresh ? 2 : page + 1,
       );
     } catch (e) {
+      print('DISCOVER fetchDiaries ERROR: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }

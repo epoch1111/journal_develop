@@ -44,24 +44,24 @@ class AppTheme {
   );
 
   // Text styles
-  static TextStyle get headingLarge => const TextStyle(
+  static const TextStyle headingLarge = TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
         color: textPrimary,
       );
 
-  static TextStyle get headingMedium => const TextStyle(
+  static const TextStyle headingMedium = TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       );
 
-  static TextStyle get bodyText => const TextStyle(
+  static const TextStyle bodyText = TextStyle(
         fontSize: 14,
         color: textSecondary,
       );
 
-  static TextStyle get caption => TextStyle(
+  static const TextStyle caption = TextStyle(
         fontSize: 11,
         color: textMuted,
       );

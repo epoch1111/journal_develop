@@ -12,6 +12,8 @@ import 'stats_screen.dart';
 import 'capsules_screen.dart';
 import 'follow_list_screen.dart';
 import 'safety_screen.dart';
+import '../../services/update_service.dart';
+import '../../widgets/update_dialog.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   final int? userId;
@@ -261,6 +263,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 }),
                 _buildMenuItem(Icons.dns_outlined, '服务器设置', () {
                   Navigator.of(context).pushNamed('/server-config');
+                }),
+                _buildMenuItem(Icons.system_update, '检查更新', () async {
+                  final info = await UpdateService().checkForUpdate();
+                  if (!mounted) return;
+                  if (info.hasUpdate) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => UpdateDialog(info: info),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已是最新版本')),
+                    );
+                  }
                 }),
               ],
               const SizedBox(height: 20),

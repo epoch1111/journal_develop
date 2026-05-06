@@ -4,16 +4,19 @@ import 'api_client.dart';
 class DiaryService {
   final ApiClient _client = ApiClient();
 
-  Future<List<Diary>> fetchDiaries({String? date}) async {
+  Future<List<Diary>> fetchDiaries({String? date, String? keyword}) async {
+    final params = <String, String>{};
+    if (date != null) params['date'] = date;
+    if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
     final data = await _client.get('/api/diaries',
-        queryParams: date != null ? {'date': date} : null);
-    final list = data['diaries'] as List? ?? [];
+        queryParams: params.isNotEmpty ? params : null);
+    final list = data['data'] as List? ?? [];
     return list.map((d) => Diary.fromJson(d)).toList();
   }
 
   Future<List<Diary>> fetchDiariesByDate(String date) async {
     final data = await _client.get('/api/diaries/date/$date');
-    final list = data['diaries'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((d) => Diary.fromJson(d)).toList();
   }
 

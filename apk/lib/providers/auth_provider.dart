@@ -36,9 +36,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> _init() async {
     await _client.init();
-    if (_client.token != null) {
-      state = state.copyWith(isLoggedIn: true);
-    }
   }
 
   Future<bool> login(String username, String password) async {
@@ -83,7 +80,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _authService.fetchCurrentUser();
       state = state.copyWith(user: user, isLoggedIn: true, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false);
+      await _client.setToken(null);
+      state = state.copyWith(isLoading: false, isLoggedIn: false);
     }
   }
 

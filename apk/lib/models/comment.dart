@@ -13,6 +13,9 @@ class Comment {
   final int? parentReplyId;
   final int? rootReplyId;
   final int? replyToIdentityId;
+  final int? identityId;
+  final String? replyToNickname;
+  final String? replyToAnonName;
   final List<Comment>? replies;
   final int? likeCount;
   final bool? liked;
@@ -32,6 +35,9 @@ class Comment {
     this.parentReplyId,
     this.rootReplyId,
     this.replyToIdentityId,
+    this.identityId,
+    this.replyToNickname,
+    this.replyToAnonName,
     this.replies,
     this.likeCount,
     this.liked,
@@ -50,9 +56,12 @@ class Comment {
       isAuthor: json['is_author'],
       anonName: json['anon_name'],
       anonAvatar: json['anon_avatar'],
-      parentReplyId: json['parent_reply_id'],
-      rootReplyId: json['root_reply_id'],
-      replyToIdentityId: json['reply_to_identity_id'],
+      parentReplyId: json['parent_reply_id'] ?? json['parent_comment_id'],
+      rootReplyId: json['root_reply_id'] ?? json['root_comment_id'],
+      replyToIdentityId: json['reply_to_identity_id'] ?? json['reply_to_user_id'],
+      identityId: json['identity_id'],
+      replyToNickname: json['reply_to_nickname'],
+      replyToAnonName: json['reply_to_anon_name'],
       replies: json['replies'] != null
           ? (json['replies'] as List).map((r) => Comment.fromJson(r)).toList()
           : null,

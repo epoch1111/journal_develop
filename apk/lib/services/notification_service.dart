@@ -12,7 +12,7 @@ class NotificationService {
     if (unreadOnly) params['unread_only'] = 'true';
     final data =
         await _client.get('/api/notifications', queryParams: params);
-    final list = data['notifications'] as List? ?? [];
+    final list = data['items'] as List? ?? [];
     return list.map((n) => AppNotification.fromJson(n)).toList();
   }
 

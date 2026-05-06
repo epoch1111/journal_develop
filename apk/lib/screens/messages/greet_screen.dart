@@ -36,10 +36,10 @@ class _GreetScreenState extends ConsumerState<GreetScreen>
       final sentData = await ApiClient().get('/api/greet/requests/sent');
       if (mounted) {
         setState(() {
-          _received = (receivedData['requests'] as List? ?? [])
+          _received = (receivedData['data'] as List? ?? [])
               .map((r) => GreetRequest.fromJson(r))
               .toList();
-          _sent = (sentData['requests'] as List? ?? [])
+          _sent = (sentData['data'] as List? ?? [])
               .map((r) => GreetRequest.fromJson(r))
               .toList();
           _loading = false;

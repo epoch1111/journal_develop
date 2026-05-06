@@ -6,6 +6,8 @@ import 'treehole/treehole_screen.dart';
 import 'messages/messages_screen.dart';
 import 'profile/profile_screen.dart';
 import '../theme.dart';
+import '../services/update_service.dart';
+import '../widgets/update_dialog.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     TreeholeScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _autoCheckUpdate();
+  }
+
+  Future<void> _autoCheckUpdate() async {
+    final svc = UpdateService();
+    if (!await svc.shouldAutoCheck()) return;
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    final info = await svc.checkForUpdate();
+    if (info.hasUpdate && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => UpdateDialog(info: info),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

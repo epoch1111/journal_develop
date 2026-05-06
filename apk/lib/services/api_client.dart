@@ -6,11 +6,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
-  ApiClient._internal();
+  ApiClient._internal({http.Client? httpClient})
+      : _httpClient = httpClient ?? http.Client();
 
+  http.Client _httpClient;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   String? _baseUrl;
   String? _token;
+
+  /// Override the HTTP client for testing.
+  /// Pass null to reset to default.
+  static void injectHttpClient(http.Client? client) {
+    _instance._httpClient = client ?? http.Client();
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -51,14 +59,14 @@ class ApiClient {
     if (queryParams != null && queryParams.isNotEmpty) {
       uri = uri.replace(queryParameters: queryParams);
     }
-    final response = await http.get(uri, headers: _headers(auth: auth));
+    final response = await _httpClient.get(uri, headers: _headers(auth: auth));
     return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> post(String path,
       {Map<String, dynamic>? body, bool auth = true}) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await http.post(uri,
+    final response = await _httpClient.post(uri,
         headers: _headers(auth: auth),
         body: body != null ? jsonEncode(body) : null);
     return _handleResponse(response);
@@ -67,7 +75,7 @@ class ApiClient {
   Future<Map<String, dynamic>> put(String path,
       {Map<String, dynamic>? body, bool auth = true}) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await http.put(uri,
+    final response = await _httpClient.put(uri,
         headers: _headers(auth: auth),
         body: body != null ? jsonEncode(body) : null);
     return _handleResponse(response);
@@ -75,7 +83,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> delete(String path, {bool auth = true}) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await http.delete(uri, headers: _headers(auth: auth));
+    final response = await _httpClient.delete(uri, headers: _headers(auth: auth));
     return _handleResponse(response);
   }
 

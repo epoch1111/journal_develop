@@ -22,6 +22,7 @@ class _TreeholeDetailScreenState extends ConsumerState<TreeholeDetailScreen> {
   bool _loading = true;
   final _replyCtrl = TextEditingController();
   int? _replyingTo;
+  int? _replyingToIdentityId;
   bool _sending = false;
 
   @override
@@ -71,11 +72,17 @@ class _TreeholeDetailScreenState extends ConsumerState<TreeholeDetailScreen> {
     setState(() => _sending = true);
     try {
       final body = <String, dynamic>{'content': content};
-      if (_replyingTo != null) body['parent_reply_id'] = _replyingTo;
+      if (_replyingTo != null) {
+        body['parent_reply_id'] = _replyingTo;
+        if (_replyingToIdentityId != null) {
+          body['reply_to_identity_id'] = _replyingToIdentityId;
+        }
+      }
       await ApiClient().post('/api/treehole/${_diary!.id}/reply', body: body);
       _replyCtrl.clear();
       setState(() {
         _replyingTo = null;
+        _replyingToIdentityId = null;
         _sending = false;
       });
       await _load();
@@ -241,10 +248,13 @@ class _TreeholeDetailScreenState extends ConsumerState<TreeholeDetailScreen> {
                         const SizedBox(height: 12),
                         ..._replies.map((c) => CommentTile(
                               comment: c,
-                              isAuthor: false,
-                              onReplyTap: () {
-                                setState(() => _replyingTo = c.id);
-                                _replyCtrl.text = '回复 ${c.anonName ?? ''}: ';
+                              isAuthor: c.isAuthor == true,
+                              onReplyTap: (comment) {
+                                setState(() {
+                                  _replyingTo = comment.id;
+                                  _replyingToIdentityId = comment.identityId;
+                                });
+                                _replyCtrl.text = '回复 ${comment.anonName ?? ''}: ';
                               },
                             )),
                       ],
@@ -287,7 +297,10 @@ class _TreeholeDetailScreenState extends ConsumerState<TreeholeDetailScreen> {
                           ? IconButton(
                               icon: const Icon(Icons.close, size: 16),
                               onPressed: () {
-                                setState(() => _replyingTo = null);
+                                setState(() {
+                                  _replyingTo = null;
+                                  _replyingToIdentityId = null;
+                                });
                                 _replyCtrl.clear();
                               },
                             )

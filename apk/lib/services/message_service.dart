@@ -7,14 +7,14 @@ class MessageService {
 
   Future<List<Conversation>> fetchConversations() async {
     final data = await _client.get('/api/messages/conversations');
-    final list = data['conversations'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((c) => Conversation.fromJson(c)).toList();
   }
 
   Future<Conversation> createConversation(int targetUserId) async {
     final data = await _client.post('/api/messages/conversations',
-        body: {'target_user_id': targetUserId});
-    return Conversation.fromJson(data);
+        body: {'user_id': targetUserId});
+    return Conversation.fromJson(data['conversation']);
   }
 
   Future<List<ChatMessage>> fetchMessages(int conversationId,
@@ -22,7 +22,7 @@ class MessageService {
     final data = await _client
         .get('/api/messages/conversations/$conversationId/messages',
             queryParams: {'page': page.toString()});
-    final list = data['messages'] as List? ?? [];
+    final list = data['items'] as List? ?? [];
     return list.map((m) => ChatMessage.fromJson(m)).toList();
   }
 
@@ -30,7 +30,7 @@ class MessageService {
     final data = await _client.post(
         '/api/messages/conversations/$conversationId/messages',
         body: {'content': content});
-    return ChatMessage.fromJson(data);
+    return ChatMessage.fromJson(data['message']);
   }
 
   Future<void> markRead(int conversationId) async {

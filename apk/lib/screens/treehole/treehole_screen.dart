@@ -208,11 +208,11 @@ class _TreeholeScreenState extends ConsumerState<TreeholeScreen> {
                                               comment: c,
                                               isAuthor:
                                                   c.isAuthor == true,
-                                              onReplyTap: () {
+                                              onReplyTap: (comment) {
                                                 setState(() =>
-                                                    _replyingTo = c.id);
+                                                    _replyingTo = comment.id);
                                                 _replyCtrl.text =
-                                                    '回复 ${c.anonName ?? ''}: ';
+                                                    '回复 ${comment.anonName ?? ''}: ';
                                               },
                                               onLikeTap: () {},
                                             )),

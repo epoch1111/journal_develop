@@ -17,7 +17,7 @@ class DiscoverService {
     if (feed == 'following') {
       final data = await _client.get('/api/me/following-feed',
           queryParams: {'page': page.toString()});
-      final list = data['diaries'] as List? ?? [];
+      final list = data['items'] as List? ?? [];
       return {
         'diaries': list.map((d) => Diary.fromJson(d)).toList(),
         'has_more': data['has_more'] ?? false,
@@ -32,7 +32,7 @@ class DiscoverService {
 
     final data = await _client.get('/api/public/diaries',
         auth: false, queryParams: params);
-    final list = data['diaries'] as List? ?? [];
+    final list = data['items'] as List? ?? [];
     return {
       'diaries': list.map((d) => Diary.fromJson(d)).toList(),
       'has_more': data['has_more'] ?? false,
@@ -56,24 +56,25 @@ class DiscoverService {
   }
 
   Future<Comment> commentOnDiary(int diaryId, String clientId, String content,
-      {int? parentReplyId}) async {
+      {int? parentReplyId, int? replyToUserId}) async {
     final body = <String, dynamic>{
       'client_id': clientId,
       'content': content,
     };
-    if (parentReplyId != null) body['parent_reply_id'] = parentReplyId;
+    if (parentReplyId != null) body['parent_comment_id'] = parentReplyId;
+    if (replyToUserId != null) body['reply_to_user_id'] = replyToUserId;
     final data = await _client.post(
         '/api/public/diaries/$diaryId/comments',
         body: body,
-        auth: false);
-    return Comment.fromJson(data);
+        auth: true);
+    return Comment.fromJson(data['comment']);
   }
 
   Future<List<Comment>> fetchComments(int diaryId) async {
     final data = await _client.get(
         '/api/public/diaries/$diaryId/comments',
-        auth: false);
-    final list = data['comments'] as List? ?? [];
+        auth: true);
+    final list = data['data'] as List? ?? [];
     return list.map((c) => Comment.fromJson(c)).toList();
   }
 }

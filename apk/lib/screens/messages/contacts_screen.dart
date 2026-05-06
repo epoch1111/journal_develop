@@ -43,8 +43,8 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   Future<void> _startChat(Map<String, dynamic> user) async {
     try {
       final data = await ApiClient().post('/api/messages/conversations',
-          body: {'target_user_id': user['id']});
-      final convId = data['id'];
+          body: {'user_id': user['id']});
+      final convId = data['conversation']?['id'];
       if (convId != null && mounted) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ChatScreen(

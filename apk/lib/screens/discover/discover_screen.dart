@@ -80,10 +80,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   ),
                   const SizedBox(height: 10),
                   // Mood filter row
-                  SizedBox(
-                    height: 34,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
                         _buildFilterChip(
                             '全部', state.moodFilter == null,
@@ -100,10 +99,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   ),
                   const SizedBox(height: 8),
                   // Tag filter row
-                  SizedBox(
-                    height: 30,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
                         _buildTagChip(
                             '全部', state.tagFilter == null,
@@ -126,7 +124,16 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               child: state.isLoading && state.diaries.isEmpty
                   ? const LoadingIndicator(message: '加载中...')
                   : state.diaries.isEmpty
-                      ? const EmptyState(
+                      ? state.error != null
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text('加载失败:\n${state.error}',
+                                    style: const TextStyle(color: AppTheme.danger),
+                                    textAlign: TextAlign.center),
+                              ),
+                            )
+                          : const EmptyState(
                           icon: Icons.explore_outlined,
                           title: '暂无公开日记',
                           subtitle: '还没有人公开发布日记')

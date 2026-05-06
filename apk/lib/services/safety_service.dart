@@ -18,7 +18,7 @@ class SafetyService {
 
   Future<List<User>> fetchBlockedUsers() async {
     final data = await _client.get('/api/me/blocked-users');
-    final list = data['blocked_users'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((u) => User.fromJson(u)).toList();
   }
 
@@ -36,7 +36,7 @@ class SafetyService {
 
   Future<List<Map<String, dynamic>>> fetchMyReports() async {
     final data = await _client.get('/api/reports/my');
-    final list = data['reports'] as List? ?? [];
+    final list = data['data'] as List? ?? [];
     return list.map((r) => r as Map<String, dynamic>).toList();
   }
 }

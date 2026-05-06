@@ -276,8 +276,13 @@ class _WriteDiaryScreenState extends ConsumerState<WriteDiaryScreen> {
                       ClipRRect(
                         borderRadius:
                             BorderRadius.circular(AppTheme.radiusXs),
-                        child: Image.network(e.value,
-                            width: 80, height: 80, fit: BoxFit.cover),
+                        child: Image.network(
+                            e.value.startsWith('http')
+                                ? e.value
+                                : '${ApiClient().baseUrl}${e.value}',
+                            width: 80, height: 80, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+                        ),
                       ),
                       Positioned(
                         top: -4,
