@@ -193,8 +193,43 @@ def get_treehole_detail(diary_id: int, viewer_id: int | None = None) -> dict:
     diary = get_treehole_by_id(diary_id)
     if not diary:
         raise HTTPException(status_code=404, detail="树洞日记不存在")
-    diary["replies"] = list_treehole_replies(diary_id, viewer_id)
+    owner = diary.get("user_id")
+    block_reason = None
+    if viewer_id and owner:
+        from services.safety_service import get_block_direction
+        direction = get_block_direction(viewer_id, owner)
+        if direction == 'blocked':
+            block_reason = "你已拉黑该用户"
+        elif direction == 'blocked_by':
+            block_reason = "该用户已拉黑你"
+    if block_reason:
+        diary["content"] = f"[{block_reason}，无法查看内容]"
+        diary["ai_summary"] = ""
+        diary["ai_message"] = ""
+        if diary.get("image_url"):
+            diary["image_url"] = ""
+        diary["_blocked"] = True
+        diary["_block_reason"] = block_reason
+    diary["replies"] = _list_replies_masked(diary_id, viewer_id)
     return diary
+
+
+def _list_replies_masked(diary_id: int, viewer_id: int | None) -> list[dict]:
+    """树洞回复列表，屏蔽被双向拉黑的回复"""
+    replies = list_treehole_replies(diary_id, viewer_id)
+    if not viewer_id:
+        return replies
+    from database import get_blocked_user_ids
+    blocked_ids = set(get_blocked_user_ids(viewer_id))
+    def mask(reply):
+        if reply.get("user_id") in blocked_ids:
+            reply["content"] = "[内容不可见]"
+            reply["image_urls"] = []
+        if reply.get("replies"):
+            for r in reply["replies"]:
+                mask(r)
+        return reply
+    return [mask(r) for r in replies]
 
 
 def hug_diary(diary_id: int, user_id: int) -> dict:
@@ -202,6 +237,10 @@ def hug_diary(diary_id: int, user_id: int) -> dict:
     diary = get_treehole_by_id(diary_id)
     if not diary:
         raise HTTPException(status_code=404, detail="树洞日记不存在")
+    owner = diary.get("user_id")
+    if owner:
+        from services.safety_service import check_block_or_raise
+        check_block_or_raise(user_id, owner)
     success, already = save_treehole_hug(diary_id, user_id)
     if already:
         new_count = diary["hug_count"]
@@ -229,6 +268,10 @@ def like_treehole_reply(reply_id: int, user_id: int) -> dict:
     reply = get_treehole_reply_by_id(reply_id)
     if not reply:
         raise HTTPException(status_code=404, detail="回复不存在")
+    reply_owner = reply.get("user_id")
+    if reply_owner:
+        from services.safety_service import check_block_or_raise
+        check_block_or_raise(user_id, reply_owner)
     success, already = save_treehole_reply_like(reply_id, user_id)
     if not already:
         from services.notification_service import notify_treehole_reply_like
@@ -249,13 +292,18 @@ def unlike_treehole_reply(reply_id: int, user_id: int) -> dict:
 
 def reply_treehole(diary_id: int, content: str, user_id: int | None = None,
                    client_id: str = "", parent_reply_id: int | None = None,
-                   reply_to_identity_id: int | None = None) -> dict:
+                   reply_to_identity_id: int | None = None, image_url: str = '',
+                   image_urls=None) -> dict:
     """回复树洞漂流瓶（匿名，支持线程回复）"""
     diary = get_treehole_by_id(diary_id)
     if not diary:
         raise HTTPException(status_code=404, detail="树洞日记不存在")
-    if not content or not content.strip():
+    if (not content or not content.strip()) and not image_url and not image_urls:
         raise HTTPException(status_code=400, detail="回复内容不能为空")
+    treehole_owner = diary.get("user_id")
+    if user_id and treehole_owner:
+        from services.safety_service import check_block_or_raise
+        check_block_or_raise(user_id, treehole_owner)
     content = content.strip()
     if len(content) > 500:
         raise HTTPException(status_code=400, detail=f"回复内容过长，最多 500 字")
@@ -292,7 +340,8 @@ def reply_treehole(diary_id: int, content: str, user_id: int | None = None,
                                     identity_id=identity["id"],
                                     parent_reply_id=parent_reply_id,
                                     root_reply_id=root_reply_id,
-                                    reply_to_identity_id=reply_to_identity_id)
+                                    reply_to_identity_id=reply_to_identity_id,
+                                    image_url=image_url, image_urls=image_urls)
 
     from services.notification_service import notify_treehole_reply
     notify_treehole_reply(diary_id, content, user_id)
@@ -303,6 +352,8 @@ def reply_treehole(diary_id: int, content: str, user_id: int | None = None,
             "id": reply_id,
             "content": content,
             "created_at": "",  # 由列表接口返回完整时间
+            "image_url": image_url,
+            "image_urls": image_urls or [],
             "identity_id": identity["id"],
             "anon_name": identity["anon_name"],
             "anon_avatar": identity["anon_avatar"],

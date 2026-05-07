@@ -71,7 +71,7 @@ async def public_diary_comment(diary_id: int, body: PublicDiaryCommentRequest, c
     """发表评论（支持一级评论和回复评论）"""
     actor_id = current_user["id"] if current_user else None
     return add_comment(diary_id, body.client_id, body.content, actor_id,
-                       body.parent_comment_id, body.reply_to_user_id)
+                       body.parent_comment_id, body.reply_to_user_id, body.image_url or '', body.image_urls)
 
 
 @router.get("/diaries/{diary_id}/comments")

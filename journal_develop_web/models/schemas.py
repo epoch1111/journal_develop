@@ -55,6 +55,8 @@ class PublicDiaryCommentRequest(BaseModel):
     content: str
     parent_comment_id: Optional[int] = None
     reply_to_user_id: Optional[int] = None
+    image_url: Optional[str] = ""
+    image_urls: Optional[list[str]] = None
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -80,6 +82,12 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class UserChangePasswordRequest(BaseModel):
+    """修改密码请求"""
+    current_password: str
+    new_password: str
+
+
 class AuthResponse(BaseModel):
     """认证响应"""
     ok: bool
@@ -95,6 +103,8 @@ class TreeHoleReplyRequest(BaseModel):
     client_id: str = ""
     parent_reply_id: Optional[int] = None
     reply_to_identity_id: Optional[int] = None
+    image_url: Optional[str] = ""
+    image_urls: Optional[list[str]] = None
 
 
 class FollowActionResponse(BaseModel):

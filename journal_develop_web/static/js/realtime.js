@@ -15,11 +15,11 @@ window.EchoRealtime = {
     connect() {
         const token = window.EchoAPI ? window.EchoAPI.getToken() : '';
         if (!token) {
-            console.log('[WS] 未登录，跳过连接');
+            Debug.ws('未登录，跳过连接');
             return;
         }
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            console.log('[WS] 已连接，跳过');
+            Debug.ws('已连接，跳过');
             return;
         }
 
@@ -27,17 +27,17 @@ window.EchoRealtime = {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${location.host}/ws/messages?token=${encodeURIComponent(token)}`;
 
-        console.log('[WS] 正在连接...');
+        Debug.ws('正在连接...');
         try {
             this.socket = new WebSocket(wsUrl);
         } catch (e) {
-            console.warn('[WS] 连接创建失败:', e.message);
+            Debug.warn('[WS] 连接创建失败:', e.message);
             this.scheduleReconnect();
             return;
         }
 
         this.socket.onopen = () => {
-            console.log('[WS] 已连接');
+            Debug.ws('已连接');
             this.reconnectAttempts = 0;
             this._startHeartbeat();
         };
@@ -45,15 +45,15 @@ window.EchoRealtime = {
         this.socket.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
-                console.log('[WS] received payload type:', payload.type, 'full:', payload);
+                Debug.ws('received payload type:', payload.type, 'full:', payload);
                 this.handleMessage(payload);
             } catch (e) {
-                console.warn('[WS] 消息解析失败:', e.message);
+                Debug.warn('[WS] 消息解析失败:', e.message);
             }
         };
 
         this.socket.onclose = (event) => {
-            console.log(`[WS] 已断开 (code=${event.code})`);
+            Debug.ws(`已断开 (code=${event.code})`);
             this._stopHeartbeat();
             this.socket = null;
             if (!this.manuallyClosed) {
@@ -62,7 +62,7 @@ window.EchoRealtime = {
         };
 
         this.socket.onerror = (e) => {
-            console.warn('[WS] 连接错误');
+            Debug.warn('[WS] 连接错误');
         };
     },
 
@@ -75,7 +75,7 @@ window.EchoRealtime = {
             this.socket.close(1000);
             this.socket = null;
         }
-        console.log('[WS] 已主动断开');
+        Debug.ws('已主动断开');
     },
 
     /** 发送 JSON 消息 */
@@ -109,7 +109,7 @@ window.EchoRealtime = {
             case 'pong':
                 break;
             default:
-                console.warn('[WS] 未知消息类型:', type);
+                Debug.warn('[WS] 未知消息类型:', type);
         }
     },
 
@@ -118,7 +118,7 @@ window.EchoRealtime = {
         if (this.reconnectTimer) return;
         const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
         this.reconnectAttempts++;
-        console.log(`[WS] ${delay / 1000}s 后重连 (第${this.reconnectAttempts}次)`);
+        Debug.ws(`${delay / 1000}s 后重连 (第${this.reconnectAttempts}次)`);
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
             this.connect();
@@ -158,11 +158,11 @@ window.EchoRealtime = {
         const convId = payload.conversation_id;
         const msgId = msg.id;
 
-        console.log('[WS] _onNewMessage received:', { convId, msgId, currentConvId, currentConvIdType: typeof currentConvId });
+        Debug.ws('_onNewMessage received:', { convId, msgId, currentConvId, currentConvIdType: typeof currentConvId });
 
         // 检查是否已在聊天窗口
         const isCurrentChat = (currentConvId != null && currentConvId === convId);
-        console.log('[WS] isCurrentChat check:', { currentConvId, convId, isCurrentChat });
+        Debug.ws('isCurrentChat check:', { currentConvId, convId, isCurrentChat });
         const chatMessagesEl = document.getElementById('chatMessages');
 
         if (isCurrentChat && chatMessagesEl && chatMessagesEl.style.display !== 'none') {

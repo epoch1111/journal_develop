@@ -3,6 +3,30 @@
  * 所有后端请求集中在此，外部通过 window.EchoAPI 调用
  */
 window.EchoAPI = {
+    // ===== 服务器地址（支持 ngrok 等公网穿透） =====
+
+    _getServerUrl() {
+        return localStorage.getItem('echo_server_url') || '';
+    },
+
+    getServerUrl() {
+        return this._getServerUrl();
+    },
+
+    setServerUrl(url) {
+        url = (url || '').trim().replace(/\/$/, '');  // 去掉末尾斜杠
+        if (url) {
+            localStorage.setItem('echo_server_url', url);
+        } else {
+            localStorage.removeItem('echo_server_url');
+        }
+    },
+
+    _url(path) {
+        const base = this._getServerUrl();
+        return base ? base + path : path;
+    },
+
     // ===== Token 管理 =====
 
     getToken() {
@@ -23,7 +47,7 @@ window.EchoAPI = {
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
-        const res = await fetch(url, { ...options, headers });
+        const res = await fetch(this._url(url), { ...options, headers });
         if (res.status === 401) {
             this.setToken('');
             window.EchoAuth && window.EchoAuth.showLogin();
@@ -41,7 +65,7 @@ window.EchoAPI = {
     // ===== 认证 =====
 
     async register(username, password, email = '') {
-        const res = await fetch('/api/auth/register', {
+        const res = await fetch(this._url('/api/auth/register'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password, email }),
@@ -53,7 +77,7 @@ window.EchoAPI = {
     },
 
     async login(username, password) {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch(this._url('/api/auth/login'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
@@ -68,6 +92,17 @@ window.EchoAPI = {
         const res = await this._authFetch('/api/auth/me');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
+    },
+
+    async changePassword(currentPassword, newPassword) {
+        const res = await this._authFetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.message || `HTTP ${res.status}`);
+        return data;
     },
 
     logout() {
@@ -94,7 +129,7 @@ window.EchoAPI = {
     },
 
     async fetchTreeholeRandom() {
-        const res = await fetch('/api/treehole/random');
+        const res = await fetch(this._url('/api/treehole/random'));
         if (res.status === 404) return null;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -149,7 +184,7 @@ window.EchoAPI = {
         if (token) headers['Authorization'] = `Bearer ${token}`;
         const formData = new FormData();
         formData.append('file', file, 'image.jpg');
-        const res = await fetch('/api/upload', { method: 'POST', body: formData, headers });
+        const res = await fetch(this._url('/api/upload'), { method: 'POST', body: formData, headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },
@@ -200,7 +235,7 @@ window.EchoAPI = {
         if (params.tag) qs.set('tag', params.tag);
         if (params.keyword) qs.set('keyword', params.keyword);
         if (params.client_id) qs.set('client_id', params.client_id);
-        const res = await fetch(`/api/public/diaries?${qs.toString()}`);
+        const res = await fetch(this._url(`/api/public/diaries?${qs.toString()}`));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },
@@ -213,7 +248,7 @@ window.EchoAPI = {
     },
 
     async likePublicDiary(id, clientId) {
-        const res = await fetch(`/api/public/diaries/${id}/like`, {
+        const res = await fetch(this._url(`/api/public/diaries/${id}/like`), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ client_id: clientId }),
@@ -223,7 +258,7 @@ window.EchoAPI = {
     },
 
     async unlikePublicDiary(id, clientId) {
-        const res = await fetch(`/api/public/diaries/${id}/like?client_id=${clientId}`, {
+        const res = await fetch(this._url(`/api/public/diaries/${id}/like?client_id=${clientId}`), {
             method: 'DELETE',
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -284,7 +319,7 @@ window.EchoAPI = {
         const token = this.getToken();
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch('/api/profile/avatar', {
+        const res = await fetch(this._url('/api/profile/avatar'), {
             method: 'POST',
             headers,
             body: formData,
@@ -297,7 +332,7 @@ window.EchoAPI = {
         const token = this.getToken();
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`/api/profile/${userId}`, { headers });
+        const res = await fetch(this._url(`/api/profile/${userId}`), { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },
@@ -320,7 +355,7 @@ window.EchoAPI = {
         const token = this.getToken();
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`/api/users/${userId}/follow-status`, { headers });
+        const res = await fetch(this._url(`/api/users/${userId}/follow-status`), { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },
@@ -503,10 +538,11 @@ window.EchoAPI = {
 
     // ===== 树洞回复 =====
 
-    async replyTreehole(diaryId, content, parentReplyId = null, replyToIdentityId = null) {
-        const body = { content };
+    async replyTreehole(diaryId, content, parentReplyId = null, replyToIdentityId = null, clientId = '', imageUrls = '') {
+        const body = { content, client_id: clientId };
         if (parentReplyId !== null) body.parent_reply_id = parentReplyId;
         if (replyToIdentityId !== null) body.reply_to_identity_id = replyToIdentityId;
+        if (imageUrls && imageUrls.length) body.image_urls = imageUrls;
         const res = await this._authFetch(`/api/treehole/${diaryId}/reply`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -573,6 +609,12 @@ window.EchoAPI = {
 
     async fetchMyReports() {
         const res = await this._authFetch('/api/reports/my');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    },
+
+    async fetchBlockedUsers() {
+        const res = await this._authFetch('/api/me/blocked-users');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
     },

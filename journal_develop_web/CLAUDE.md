@@ -394,3 +394,94 @@ E:\Anaconda\envs\journal_develop\python.exe -m pip install bcrypt==4.0.1
 - **图片压缩**：前端上传前必须通过 `compressImage()` 压缩（max 1200px, JPEG 0.8 quality），编辑模式同样需要
 - **file input 事件**：每次进入编辑模式时需 `cloneNode(true)` + `replaceChild` 重置 file input，否则 `.click()` 触发在已脱离 DOM 的元素上
 - **多图存储**：`diary_images` 表独立存储，`diaries.image_url` 仅缓存首图用于向后兼容，所有读路径批量查询 `diary_images` 返回 `image_urls` 数组
+
+## 前端重构调试指南
+
+### 问题根源
+`index.html` 中内联了大量 JavaScript 代码，这些代码在脚本加载时立即执行，引用了 `static/js/views/` 中 JS 文件定义的函数和变量。但由于脚本加载顺序，这些函数/变量此时还未定义，导致 `ReferenceError`。
+
+### 常见错误模式
+```
+Uncaught ReferenceError: XXX is not defined
+    at index.html:行号
+```
+
+### 解决方法
+**不要在 `index.html` 中直接引用外部 JS 文件定义的函数**。正确做法：
+
+1. **如果需要在 `index.html` 中覆盖/增强函数**：把覆盖逻辑移到对应的 JS 文件末尾（IIFE 内部函数定义之后），确保在原始函数定义之后执行
+2. **如果需要在 `index.html` 中添加事件监听器**：确保监听器引用的所有函数都已在 JS 文件中通过 `window.FUNCTION_NAME = FUNCTION_NAME` 暴露到全局
+3. **使用 `setTimeout` 或 `setTimeout(0)`**：在 JS 文件末尾添加短延时执行，确保 DOM 完全加载
+
+### JS 文件中暴露函数到 window 的模式
+```javascript
+// 在 JS 文件末尾，IIFE 内部函数定义之后
+window.openGreetCenter = openGreetCenter;
+window.openNotificationCenter = openNotificationCenter;
+// 覆盖/增强逻辑
+const _origFunction = window.FunctionName;
+window.FunctionName = function() { /* 新逻辑 + _origFunction() */ };
+```
+
+### 脚本加载顺序（当前）
+```
+timeline.js → discover.js → treehole.js → profile.js → messages.js
+```
+`messages.js` 在最后加载，所以它无法被 `index.html` 中的代码引用（除非函数已通过 `window` 暴露）。
+
+### 调试技巧
+1. 打开浏览器控制台（F12）查看具体错误
+2. 错误指向 `index.html` 第 N 行 = 那一行引用了还没定义的函数
+3. 搜索该函数在哪个 JS 文件中定义，然后移动覆盖逻辑到该 JS 文件
+4. 修改 JS 文件后刷新（有时需 Ctrl+Shift+R 强制刷新清除缓存）
+5. 确保 `index.html` 中对应的 `<script src="xxx.js?v=日期">` 版本号更新
+
+### 已迁移到 JS 文件的功能
+- 消息 Tab 入口事件绑定 → `messages.js`
+- 通知中心开关逻辑 → `messages.js`
+- 打招呼中心 → `profile.js`
+- 发现页详情举报按钮 → `discover.js`
+- 树洞举报按钮 → `treehole.js`
+- 用户主页增强（含退出按钮）→ `profile.js`
+
+### 重要：函数覆盖冲突处理
+当 `index.html` 和 `JS 文件` 同时定义了同名函数时：
+- **JS 文件中定义的函数内部引用了 `index.html` 中声明的变量**（如 `detailContent`、`editMoodBtns`），但这些变量在 JS 文件 IIFE 中是 `undefined`
+- **症状**：函数执行到一半报错，后续代码不生效，但 `index.html` 中的同名函数正常工作
+- **解决方法**：在 JS 文件中**删除重复的函数定义**，让 `index.html` 中的原始版本运行
+
+```javascript
+// ❌ 错误：JS 文件中定义了与 index.html 同名的函数，且内部使用了未声明的变量
+window.enterEditMode = function() {
+    detailContent.innerHTML = '...';  // detailContent 在 JS 文件中未定义！
+    ...
+};
+
+// ✅ 正确：JS 文件中不定义，让 index.html 的版本运行
+// 如果确实需要增强功能，使用覆盖模式
+const _origEnterEditMode = window.enterEditMode;
+window.enterEditMode = function() {
+    // 增强逻辑
+    _origEnterEditMode();
+};
+```
+
+### 调试代码管理
+- 调试代码统一放在 `static/js/debug.js`，通过 `window.Debug.enabled` 一键开关
+- 生产环境设为 `false` 或移除该文件加载
+```javascript
+window.Debug = {
+    enabled: true,  // 生产环境设为 false
+    log(...args) { if (this.enabled) console.log('[Debug]', ...args); },
+    ws(...args) { if (this.enabled) console.log('[WS]', ...args); },
+    // ...
+};
+```
+
+### 常见 ReferenceError 排查清单
+| 错误信息 | 原因 | 解决方法 |
+|---|---|---|
+| `showToast is not defined` | 函数在 `index.html` 中定义但未暴露到 `window` | 在定义的文件末尾添加 `window.showToast = showToast;` |
+| `detailContent is undefined` | JS 文件中使用了 `index.html` 变量，但该变量未在 JS 文件中声明 | 删除 JS 文件中的重复函数，让 `index.html` 版本运行 |
+| `btnEditPickImage is not defined` | DOM 元素在 JS 文件中被引用，但 JS 文件未声明该变量 | 检查 `index.html` 中的变量声明，确保 JS 文件中有对应声明 |
+| 函数执行一半报错，后续代码不生效 | JS 文件中的函数覆盖了 `index.html` 中版本，但内部引用了未声明变量 | 删除 JS 文件中的重复函数 |

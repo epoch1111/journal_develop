@@ -21,14 +21,16 @@ from database import (
     remove_comment_like,
     count_comment_likes,
     get_comment_by_id as db_get_comment,
+    get_block_direction,
 )
+from services.safety_service import check_block_or_raise
 
 MAX_COMMENT_LENGTH = 500
 
 
-def _validate_comment_content(content: str):
+def _validate_comment_content(content: str, allow_empty: bool = False):
     content = (content or "").strip()
-    if not content:
+    if not content and not allow_empty:
         raise HTTPException(status_code=400, detail="评论内容不能为空")
     if len(content) > MAX_COMMENT_LENGTH:
         raise HTTPException(
@@ -131,17 +133,49 @@ def get_public_diary_detail(diary_id: int, client_id: str = None, viewer_id: int
     if not diary:
         raise HTTPException(status_code=404, detail="日记不存在或不是公开日记")
 
-    if viewer_id:
-        from services.safety_service import check_block_or_raise
-        owner = diary.get("user_id")
-        if owner:
-            check_block_or_raise(viewer_id, owner)
+    owner = diary.get("user_id")
+    block_reason = None
+    if viewer_id and owner:
+        direction = get_block_direction(viewer_id, owner)
+        if direction == 'blocked':
+            block_reason = "你已拉黑该用户"
+        elif direction == 'blocked_by':
+            block_reason = "该用户已拉黑你"
 
     _attach_mood_color(diary)
     images = [img["image_url"] for img in get_diary_images(diary_id)]
     result = _format_public_diary(diary, client_id, images)
-    result["comments"] = db_list_comments(diary_id, viewer_id=viewer_id)
+    # 被拉黑时内容不可见
+    if block_reason:
+        result["content"] = f"[{block_reason}，无法查看内容]"
+        result["ai_summary"] = ""
+        result["ai_message"] = ""
+        result["image_urls"] = []
+        result["_blocked"] = True
+        result["_block_reason"] = block_reason
+    result["comments"] = _list_comments_masked(diary_id, viewer_id)
     return result
+
+
+def _list_comments_masked(diary_id: int, viewer_id: int | None) -> list[dict]:
+    """评论列表，将被双向拉黑的评论内容屏蔽"""
+    comments = db_list_comments(diary_id, viewer_id=viewer_id)
+    if not viewer_id:
+        return comments
+    blocked_ids = set()
+    from database import get_blocked_user_ids
+    blocked_ids = set(get_blocked_user_ids(viewer_id))
+    for c in comments:
+        if c.get("user_id") in blocked_ids:
+            c["content"] = "[内容不可见]"
+            c["image_urls"] = []
+        # 二级回复也检查
+        if c.get("replies"):
+            for r in c["replies"]:
+                if r.get("user_id") in blocked_ids:
+                    r["content"] = "[内容不可见]"
+                    r["image_urls"] = []
+    return comments
 
 
 # ============ 点亮 ============
@@ -174,7 +208,8 @@ def unlike_diary(diary_id: int, client_id: str) -> dict:
 # ============ 评论 ============
 
 def add_comment(diary_id: int, client_id: str, content: str, actor_id: int | None = None,
-                parent_comment_id: int | None = None, reply_to_user_id: int | None = None) -> dict:
+                parent_comment_id: int | None = None, reply_to_user_id: int | None = None,
+                image_url: str = '', image_urls=None) -> dict:
     # 日记必须存在且为公开
     diary = db_get_public(diary_id)
     if not diary:
@@ -185,7 +220,10 @@ def add_comment(diary_id: int, client_id: str, content: str, actor_id: int | Non
         owner = get_diary_owner_id(diary_id)
         if owner:
             check_block_or_raise(actor_id, owner)
-    content = _validate_comment_content(content)
+        # 回复他人时也要检查被回复人
+        if reply_to_user_id:
+            check_block_or_raise(actor_id, reply_to_user_id)
+    content = _validate_comment_content(content, allow_empty=bool(image_url) or bool(image_urls))
 
     # 验证 parent_comment_id
     root_comment_id = None
@@ -210,7 +248,7 @@ def add_comment(diary_id: int, client_id: str, content: str, actor_id: int | Non
             raise HTTPException(status_code=400, detail="被回复的用户不存在")
 
     cid = db_add_comment(diary_id, client_id, content, actor_id,
-                         parent_comment_id, reply_to_user_id, root_comment_id)
+                         parent_comment_id, reply_to_user_id, root_comment_id, image_url, image_urls)
 
     # 通知逻辑
     if actor_id:
@@ -233,6 +271,7 @@ def add_comment(diary_id: int, client_id: str, content: str, actor_id: int | Non
             "id": cid,
             "content": content,
             "created_at": "",
+            "image_url": image_url,
         },
     }
 
@@ -249,6 +288,9 @@ def like_comment(comment_id: int, user_id: int) -> dict:
     comment = db_get_comment(comment_id)
     if not comment:
         raise HTTPException(status_code=404, detail="评论不存在")
+    comment_owner = comment.get("user_id")
+    if comment_owner:
+        check_block_or_raise(user_id, comment_owner)
     success, already = save_comment_like(comment_id, user_id)
     like_count = count_comment_likes(comment_id)
     return {"ok": True, "like_count": like_count, "already_liked": already}

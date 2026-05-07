@@ -12,6 +12,7 @@ from database import (
     get_user_by_username as db_get_user_by_username,
     create_user as db_create_user,
     get_user_by_id as db_get_user_by_id,
+    get_connection,
 )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -155,3 +156,28 @@ def _sanitize_user(user: dict) -> dict:
         "email": user.get("email", ""),
         "created_at": user.get("created_at", ""),
     }
+
+
+def change_password(user: dict, current_password: str, new_password: str) -> dict:
+    """修改密码，需验证当前密码正确"""
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="当前密码和新密码都不能为空")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码至少6位")
+    hashed = user.get("password_hash") or ""
+    if not hashed:
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    try:
+        ok = verify_password(current_password, hashed)
+    except Exception:
+        ok = False
+    if not ok:
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    conn = get_connection()
+    conn.execute(
+        "UPDATE users SET password_hash=?, updated_at=? WHERE id=?",
+        (hash_password(new_password), datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user["id"])
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "message": "密码修改成功"}

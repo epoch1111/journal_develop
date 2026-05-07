@@ -13,7 +13,17 @@ from database import (
     get_user_by_id,
     get_diary_by_id,
     get_user_recent_public_diaries,
+    get_block_direction,
 )
+
+
+def _should_notify(recipient_id: int, actor_id: int) -> bool:
+    """检查是否应该发送通知（recipient 未拉黑 actor）"""
+    if not recipient_id or not actor_id:
+        return True
+    direction = get_block_direction(recipient_id, actor_id)
+    # 如果 recipient 拉黑了 actor，不发送通知
+    return direction != 'blocked'
 
 
 def _get_nickname(user_id: int | None) -> str:
@@ -63,6 +73,8 @@ def _ws_push_notification(recipient_id: int, notif_id: int, notif_type: str,
 
 def notify_follow(follower_id: int, following_id: int):
     """关注通知：首次关注成功时调用，重复关注不通知"""
+    if not _should_notify(following_id, follower_id):
+        return
     if db_notification_exists(following_id, follower_id, "follow", follower_id):
         return
     nickname = _get_nickname(follower_id)
@@ -87,6 +99,8 @@ def notify_public_diary_like(actor_id: int, diary_id: int):
         return
     recipient_id = diary.get("user_id", 0)
     if not recipient_id or recipient_id == actor_id:
+        return
+    if not _should_notify(recipient_id, actor_id):
         return
     if db_notification_exists(recipient_id, actor_id, "public_diary_like", diary_id):
         return
@@ -113,6 +127,8 @@ def notify_public_diary_comment(actor_id: int, diary_id: int, comment_content: s
     recipient_id = diary.get("user_id", 0)
     if not recipient_id or recipient_id == actor_id:
         return
+    if not _should_notify(recipient_id, actor_id):
+        return
     nickname = _get_nickname(actor_id)
     summary = (comment_content or "").strip()
     if len(summary) > 30:
@@ -136,6 +152,8 @@ def notify_comment_reply(actor_id: int, reply_to_user_id: int, diary_id: int,
                          parent_comment_id: int, reply_content: str):
     """评论被回复通知：通知被回复的人"""
     if actor_id == reply_to_user_id:
+        return
+    if not _should_notify(reply_to_user_id, actor_id):
         return
     if db_notification_exists(reply_to_user_id, actor_id, "public_diary_comment_reply", parent_comment_id):
         return
@@ -166,6 +184,8 @@ def notify_treehole_hug(diary_id: int, actor_id: int | None = None):
     recipient_id = diary.get("user_id", 0)
     if not recipient_id:
         return
+    if actor_id and not _should_notify(recipient_id, actor_id):
+        return
     if db_notification_exists(recipient_id, None, "treehole_hug", diary_id):
         return
     nid = db_create_notification(
@@ -189,6 +209,8 @@ def notify_treehole_reply(diary_id: int, reply_content: str, actor_id: int | Non
         return
     recipient_id = diary.get("user_id", 0)
     if not recipient_id:
+        return
+    if actor_id and not _should_notify(recipient_id, actor_id):
         return
     summary = (reply_content or "").strip()
     if len(summary) > 30:
@@ -216,6 +238,8 @@ def notify_treehole_reply_like(reply_id: int, actor_id: int):
     recipient_id = reply.get("user_id")
     if not recipient_id or recipient_id == actor_id:
         return
+    if not _should_notify(recipient_id, actor_id):
+        return
     # 不重复通知
     if db_notification_exists(recipient_id, actor_id, "treehole_reply_like", reply_id):
         return
@@ -242,6 +266,8 @@ def notify_greet_request(requester_id: int, receiver_id: int, request_id: int):
     """有人向我打招呼"""
     if requester_id == receiver_id:
         return
+    if not _should_notify(receiver_id, requester_id):
+        return
     nickname = _get_nickname(requester_id)
     nid = db_create_notification(
         recipient_id=receiver_id,
@@ -261,6 +287,8 @@ def notify_greet_accepted(receiver_id: int, requester_id: int, request_id: int):
     """打招呼被同意"""
     if receiver_id == requester_id:
         return
+    if not _should_notify(requester_id, receiver_id):
+        return
     nickname = _get_nickname(receiver_id)
     nid = db_create_notification(
         recipient_id=requester_id,
@@ -279,6 +307,8 @@ def notify_greet_accepted(receiver_id: int, requester_id: int, request_id: int):
 def notify_greet_rejected(receiver_id: int, requester_id: int, request_id: int):
     """打招呼被拒绝"""
     if receiver_id == requester_id:
+        return
+    if not _should_notify(requester_id, receiver_id):
         return
     nickname = _get_nickname(receiver_id)
     nid = db_create_notification(
@@ -300,6 +330,8 @@ def notify_greet_rejected(receiver_id: int, requester_id: int, request_id: int):
 def notify_private_message(sender_id: int, receiver_id: int, conversation_id: int, message_content: str):
     """收到新私信"""
     if sender_id == receiver_id:
+        return
+    if not _should_notify(receiver_id, sender_id):
         return
     nickname = _get_nickname(sender_id)
     summary = (message_content or "").strip()

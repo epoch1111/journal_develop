@@ -39,7 +39,7 @@ function renderDiaryCardInner(d) {
                 <time class="text-xs text-gray-400 mt-1">${formatDate(d.created_at)}</time>
             </div>
         </div>
-        ${d.image_url ? `<img src="${escapeHtml(d.image_url)}" class="w-full h-48 object-cover rounded-2xl mb-3 shadow-sm border border-gray-50" alt="日记图片">` : ''}
+        ${d.image_url ? `<img src="${escapeHtml(d.image_url)}" class="w-full h-48 object-contain rounded-2xl mb-3 shadow-sm border border-gray-50" alt="日记图片">` : ''}
         <p class="text-[15px] text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap">${escapeHtml(d.content)}</p>
         <div class="flex items-start gap-2.5">
             <div class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center text-lg shrink-0 shadow-sm select-none">🐰</div>

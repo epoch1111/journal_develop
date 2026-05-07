@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import re
 import sqlite3
 import os
@@ -142,6 +143,10 @@ def init_db():
         conn.execute("ALTER TABLE public_diary_comments ADD COLUMN user_id INTEGER")
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute("ALTER TABLE public_diary_comments ADD COLUMN image_url TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     for col, col_def in [
         ("parent_comment_id", "INTEGER DEFAULT NULL"),
         ("reply_to_user_id", "INTEGER DEFAULT NULL"),
@@ -257,6 +262,10 @@ def init_db():
     # 增量添加 user_id 列（向后兼容）
     try:
         conn.execute("ALTER TABLE treehole_replies ADD COLUMN user_id INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE treehole_replies ADD COLUMN image_url TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 
@@ -429,10 +438,18 @@ def get_random_public_diary():
     """随机获取一条树洞日记（content_type='treehole'）"""
     conn = get_connection()
     row = conn.execute(
-        "SELECT id, mood, content, hug_count FROM diaries WHERE content_type = 'treehole' ORDER BY RANDOM() LIMIT 1"
+        "SELECT id, mood, content, hug_count, image_url FROM diaries WHERE content_type = 'treehole' ORDER BY RANDOM() LIMIT 1"
     ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    img_rows = conn.execute("SELECT image_url FROM diary_images WHERE diary_id = ? ORDER BY sort_order", (d["id"],)).fetchall()
+    d["image_urls"] = [r["image_url"] for r in img_rows] if img_rows else []
+    if not d["image_urls"] and d.get("image_url"):
+        d["image_urls"] = [d["image_url"]]
     conn.close()
-    return dict(row) if row else None
+    return d
 
 
 def increment_hug_count(diary_id: int) -> int:
@@ -706,15 +723,21 @@ def _anon_name(seed: int) -> str:
 # ---- 评论 ----
 
 def add_public_diary_comment(diary_id, client_id, content, user_id=None,
-                              parent_comment_id=None, reply_to_user_id=None, root_comment_id=None):
-    """添加评论，返回新评论 id"""
+                              parent_comment_id=None, reply_to_user_id=None, root_comment_id=None,
+                              image_url='', image_urls=None):
+    """添加评论，返回新评论 id。image_urls 优先级高于 image_url"""
     conn = get_connection()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 多图存 JSON 字符串
+    urls = image_urls or []
+    if image_url and image_url not in urls:
+        urls.insert(0, image_url)
+    img_str = json.dumps(urls) if urls else ''
     cursor = conn.execute(
         """INSERT INTO public_diary_comments
-           (diary_id, client_id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (diary_id, client_id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id)
+           (diary_id, client_id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id, image_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (diary_id, client_id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id, img_str)
     )
     conn.commit()
     comment_id = cursor.lastrowid
@@ -726,7 +749,7 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None, diary_owner_i
     """获取评论列表，返回线程结构：一级评论 + replies（含作者信息、reply_to_nickname、点赞信息、is_author）"""
     conn = get_connection()
     rows = conn.execute(
-        """SELECT id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id
+        """SELECT id, content, created_at, user_id, parent_comment_id, reply_to_user_id, root_comment_id, image_url
            FROM public_diary_comments WHERE diary_id = ?
            ORDER BY created_at ASC LIMIT ?""",
         (diary_id, limit)
@@ -782,6 +805,12 @@ def list_public_diary_comments(diary_id, limit=50, viewer_id=None, diary_owner_i
         cid = d["id"]
         uid = d.get("user_id")
         reply_to_uid = d.get("reply_to_user_id")
+        # 解析 image_url JSON 字符串为数组
+        img_str = d.pop("image_url", '') or ''
+        try:
+            d["image_urls"] = json.loads(img_str) if img_str else []
+        except Exception:
+            d["image_urls"] = [img_str] if img_str else []
 
         if uid and uid in user_cache and user_cache[uid]:
             d["author_name"] = user_cache[uid]["nickname"]
@@ -984,7 +1013,7 @@ def get_user_mood_keywords(user_id: int):
     conn.close()
 
     keywords = []
-    mood_label_map = {"😊": "开心", "😫": "疲惫", "😢": "难过", "😡": "生气", "🥰": "幸福"}
+    mood_label_map = {"😊": "开心", "😫": "疲惫", "😢": "难过", "😡": "生气", "🥰": "幸福", "😐": "平静"}
     for m in moods:
         label = mood_label_map.get(m["mood"], "")
         if label and label not in keywords:
@@ -1738,6 +1767,24 @@ def is_blocked_between(user_a_id: int, user_b_id: int) -> bool:
     return row is not None
 
 
+def get_block_direction(user_a_id: int, user_b_id: int) -> str | None:
+    """返回拉黑方向: 'blocked'(A拉黑了B), 'blocked_by'(B拉黑了A), None(无拉黑)"""
+    if not user_a_id or not user_b_id:
+        return None
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT blocker_id FROM user_blocks
+           WHERE (blocker_id = ? AND blocked_id = ?)
+              OR (blocker_id = ? AND blocked_id = ?)
+           LIMIT 1""",
+        (user_a_id, user_b_id, user_b_id, user_a_id),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return 'blocked' if row['blocker_id'] == user_a_id else 'blocked_by'
+
+
 def has_blocked(blocker_id: int, blocked_id: int) -> bool:
     """检查 blocker_id 是否拉黑了 blocked_id"""
     conn = get_connection()
@@ -1875,11 +1922,20 @@ def get_treehole_by_id(treehole_id: int) -> dict | None:
     """获取树洞日记详情（仅 content_type='treehole'）"""
     conn = get_connection()
     row = conn.execute(
-        "SELECT id, mood, content, tags, hug_count, created_at FROM diaries WHERE id = ? AND content_type = 'treehole'",
+        "SELECT id, mood, content, tags, hug_count, created_at, image_url FROM diaries WHERE id = ? AND content_type = 'treehole'",
         (treehole_id,),
     ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    # 补充 image_urls 数组
+    img_rows = conn.execute("SELECT image_url FROM diary_images WHERE diary_id = ? ORDER BY sort_order", (treehole_id,)).fetchall()
+    d["image_urls"] = [r["image_url"] for r in img_rows] if img_rows else []
+    if not d["image_urls"] and d.get("image_url"):
+        d["image_urls"] = [d["image_url"]]
     conn.close()
-    return dict(row) if row else None
+    return d
 
 
 # 树洞匿名昵称/头像池
@@ -1938,15 +1994,21 @@ def get_treehole_identity_by_id(identity_id: int) -> dict | None:
 
 def save_treehole_reply(diary_id: int, content: str, user_id: int | None = None,
                          identity_id: int | None = None, parent_reply_id: int | None = None,
-                         root_reply_id: int | None = None, reply_to_identity_id: int | None = None) -> int:
+                         root_reply_id: int | None = None, reply_to_identity_id: int | None = None,
+                         image_url: str = '', image_urls=None) -> int:
     """保存树洞匿名回复（支持线程），返回回复 id"""
     conn = get_connection()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 多图存 JSON 字符串
+    urls = image_urls or []
+    if image_url and image_url not in urls:
+        urls.insert(0, image_url)
+    img_str = json.dumps(urls) if urls else ''
     cursor = conn.execute(
         """INSERT INTO treehole_replies
-           (diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id),
+           (diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id, image_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id, img_str),
     )
     conn.commit()
     reply_id = cursor.lastrowid
@@ -1958,18 +2020,28 @@ def get_treehole_reply_full(reply_id: int) -> dict | None:
     """获取单条树洞回复（含线程字段）"""
     conn = get_connection()
     row = conn.execute(
-        "SELECT id, diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id FROM treehole_replies WHERE id = ?",
+        "SELECT id, diary_id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id, image_url FROM treehole_replies WHERE id = ?",
         (reply_id,),
     ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    img_str = d.get("image_url", '') or ''
+    try:
+        d["image_urls"] = json.loads(img_str) if img_str else []
+    except Exception:
+        d["image_urls"] = [img_str] if img_str else []
+    d.pop("image_url", None)
     conn.close()
-    return dict(row) if row else None
+    return d
 
 
 def list_treehole_replies(diary_id: int, viewer_id: int | None = None, diary_owner_id: int | None = None) -> list[dict]:
     """获取树洞回复列表——返回线程结构（一级回复 + replies 子数组，含 is_author）"""
     conn = get_connection()
     rows = conn.execute(
-        "SELECT id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id FROM treehole_replies WHERE diary_id = ? ORDER BY created_at ASC",
+        "SELECT id, user_id, content, created_at, identity_id, parent_reply_id, root_reply_id, reply_to_identity_id, image_url FROM treehole_replies WHERE diary_id = ? ORDER BY created_at ASC",
         (diary_id,),
     ).fetchall()
 
@@ -2020,6 +2092,12 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None, diary_own
         rid = d["id"]
         iid = d.pop("identity_id", None)
         reply_to_iid = d.pop("reply_to_identity_id", None)
+        # 解析 image_url JSON 字符串为数组
+        img_str = d.pop("image_url", '') or ''
+        try:
+            d["image_urls"] = json.loads(img_str) if img_str else []
+        except Exception:
+            d["image_urls"] = [img_str] if img_str else []
 
         if iid and iid in id_cache and id_cache[iid]:
             d["anon_name"] = id_cache[iid]["anon_name"]
@@ -2056,6 +2134,12 @@ def list_treehole_replies(diary_id: int, viewer_id: int | None = None, diary_own
 
     conn.close()
     return root_replies
+
+
+def get_treehole_reply_owner_id(reply_id: int) -> int | None:
+    """获取树洞回复作者 id"""
+    reply = get_treehole_reply_by_id(reply_id)
+    return reply['user_id'] if reply else None
 
 
 def get_treehole_reply_by_id(reply_id: int) -> dict | None:

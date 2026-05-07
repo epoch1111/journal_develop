@@ -7,6 +7,7 @@ from database import (
     unblock_user as db_unblock,
     has_blocked as db_has_blocked,
     is_blocked_between as db_is_blocked_between,
+    get_block_direction,
     list_blocked_users as db_list_blocked,
     count_blocked_users as db_count_blocked,
     create_report as db_create_report,
@@ -18,20 +19,50 @@ from database import (
     get_comment_owner_or_diary_owner,
     get_message_participants,
     get_treehole_owner_id,
+    get_treehole_reply_owner_id,
 )
 
-VALID_TARGET_TYPES = {"user", "diary", "comment", "message", "treehole"}
+VALID_TARGET_TYPES = {"user", "diary", "comment", "message", "treehole", "treehole_reply"}
 VALID_REPORT_REASONS = {"harassment", "spam", "sexual", "violence", "privacy", "scam", "other"}
 MAX_DESCRIPTION = 500
 MAX_BLOCK_REASON = 200
+
+
+def get_blocked_user_ids(user_id: int) -> set[int]:
+    """获取当前用户所有拉黑和被拉黑的用户 ID 集合"""
+    if not user_id:
+        return set()
+    from database import get_blocked_user_ids as db_get_blocked_ids
+    return set(db_get_blocked_ids(user_id))
+
+
+def filter_diaries_blocked(diaries: list[dict], viewer_id: int | None) -> list[dict]:
+    """从日记列表中过滤掉被双向拉黑用户的日记，并标记拉黑状态"""
+    if not viewer_id:
+        return [{**d, "_blocked": False} for d in diaries]
+    blocked_ids = get_blocked_user_ids(viewer_id)
+    result = []
+    for d in diaries:
+        owner = d.get("user_id", 0)
+        if owner in blocked_ids:
+            d = {**d, "content": "内容不可见", "ai_summary": "", "ai_message": "", "_blocked": True}
+            if d.get("image_urls"):
+                d["image_urls"] = []
+        else:
+            d = {**d, "_blocked": False}
+        result.append(d)
+    return result
 
 
 def check_block_or_raise(user_a_id: int, user_b_id: int):
     """检查任意方向是否存在拉黑，如果是则抛 403"""
     if not user_a_id or not user_b_id:
         return
-    if db_is_blocked_between(user_a_id, user_b_id):
-        raise HTTPException(status_code=403, detail="由于安全设置，暂时不能进行该操作")
+    direction = get_block_direction(user_a_id, user_b_id)
+    if direction == 'blocked':
+        raise HTTPException(status_code=403, detail="你已拉黑该用户，无法进行此操作")
+    if direction == 'blocked_by':
+        raise HTTPException(status_code=403, detail="该用户已拉黑你，无法进行此操作")
 
 
 # ============ 拉黑 ============
@@ -76,12 +107,11 @@ def get_block_status(current_user_id: int, target_user_id: int) -> dict:
     """查询拉黑状态"""
     if not get_user_by_id(target_user_id):
         raise HTTPException(status_code=404, detail="用户不存在")
-    blocked = db_has_blocked(current_user_id, target_user_id)
-    blocked_by = db_has_blocked(target_user_id, current_user_id)
+    direction = get_block_direction(current_user_id, target_user_id)
     return {
-        "blocked": blocked,
-        "blocked_by_target": blocked_by,
-        "any_blocked": blocked or blocked_by,
+        "blocked": direction == 'blocked',
+        "blocked_by_target": direction == 'blocked_by',
+        "any_blocked": direction is not None,
     }
 
 
@@ -115,6 +145,11 @@ def _infer_target_user(target_type: str, target_id: int) -> int | None:
         owner = get_treehole_owner_id(target_id)
         if owner is None:
             raise HTTPException(status_code=404, detail="树洞日记不存在")
+        return owner
+    elif target_type == "treehole_reply":
+        owner = get_treehole_reply_owner_id(target_id)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="树洞回复不存在")
         return owner
     return None
 

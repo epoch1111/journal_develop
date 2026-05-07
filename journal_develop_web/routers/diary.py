@@ -141,4 +141,4 @@ async def treehole_unhug(diary_id: int, user=Depends(require_user)):
 @router.post("/treehole/{diary_id}/reply")
 async def treehole_reply(diary_id: int, body: TreeHoleReplyRequest, user=Depends(require_user)):
     """回复一篇树洞日记（需登录，对外匿名）"""
-    return reply_treehole(diary_id, body.content, user["id"], body.client_id, body.parent_reply_id, body.reply_to_identity_id)
+    return reply_treehole(diary_id, body.content, user["id"], body.client_id, body.parent_reply_id, body.reply_to_identity_id, body.image_url or '', body.image_urls)

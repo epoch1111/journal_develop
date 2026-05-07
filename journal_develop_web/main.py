@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from database import init_db
@@ -26,6 +27,15 @@ from routers.seed_demo import router as seed_demo_router
 from routers.app_version import router as app_version_router
 
 app = FastAPI(title="Echo - 治愈系智能日记")
+
+# CORS：允许所有来源（用于 ngrok 等公网穿透场景）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 确保上传目录存在
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
