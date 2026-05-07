@@ -56,6 +56,9 @@ def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials
     user = _resolve_user(credentials)
     request.state.user = user
     request.state.user_id = user["id"] if user else None
+    if user:
+        from services.admin_service import touch_user
+        touch_user(user["id"])
     return user
 
 
@@ -64,6 +67,9 @@ def get_optional_user(request: Request, credentials: HTTPAuthorizationCredential
     user = _resolve_user(credentials) if credentials else None
     request.state.user = user
     request.state.user_id = user["id"] if user else None
+    if user:
+        from services.admin_service import touch_user
+        touch_user(user["id"])
     return user
 
 
@@ -113,6 +119,8 @@ def register(username: str, password: str, email: str = "") -> dict:
         raise HTTPException(status_code=500, detail="注册失败，请重试")
 
     token = create_access_token(user["id"], username)
+    from services.admin_service import touch_user
+    touch_user(user["id"])
     return {
         "ok": True,
         "access_token": token,
@@ -133,6 +141,8 @@ def login(username: str, password: str) -> dict:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     token = create_access_token(user["id"], username)
+    from services.admin_service import touch_user
+    touch_user(user["id"])
     return {
         "ok": True,
         "access_token": token,

@@ -26,3 +26,11 @@ async def api_me(user=Depends(require_user)):
 @router.post("/change-password")
 async def api_change_password(body: UserChangePasswordRequest, user=Depends(require_user)):
     return change_password(user, body.current_password, body.new_password)
+
+
+@router.post("/logout")
+async def api_logout(user=Depends(require_user)):
+    """登出（清除活跃状态）"""
+    from services.admin_service import remove_user
+    remove_user(user["id"])
+    return {"ok": True}

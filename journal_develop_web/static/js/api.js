@@ -106,6 +106,13 @@ window.EchoAPI = {
     },
 
     logout() {
+        const token = this.getToken();
+        if (token) {
+            fetch(this._url('/api/auth/logout'), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {});
+        }
         this.setToken('');
         location.reload();
     },
