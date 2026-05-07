@@ -1009,8 +1009,8 @@
                     <i data-lucide="x" class="w-6 h-6 text-gray-500"></i>
                 </button>
             </div>
-            <!-- 远程连接入口（登录前可先连接远程服务） -->
-            <div class="mb-4 border border-blue-100 rounded-2xl overflow-hidden">
+            <!-- 远程连接入口（已隐藏，备用） -->
+            <div class="mb-4 border border-blue-100 rounded-2xl overflow-hidden hidden" id="loginServerConnPanel">
                 <button id="btnToggleServerConn" class="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100 transition-colors">
                     <span class="text-xs text-blue-400 font-medium">🌐 远程连接</span>
                     <i data-lucide="chevron-down" id="serverConnArrow" class="w-4 h-4 text-blue-300 transition-transform"></i>
@@ -1113,8 +1113,8 @@
                 </button>
             </div>
             <div class="space-y-3">
-                <!-- 远程连接 -->
-                <div class="bg-blue-50 rounded-2xl p-4">
+                <!-- 远程连接 - 已隐藏，备用（APK 开发或前后端分开部署时启用） -->
+                <div class="bg-blue-50 rounded-2xl p-4 hidden" id="settingsServerConnPanel">
                     <div class="flex items-center gap-2 mb-2">
                         <i data-lucide="globe" class="w-4 h-4 text-blue-400"></i>
                         <span class="text-sm font-semibold text-gray-700">🌐 远程连接</span>
