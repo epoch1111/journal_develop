@@ -156,10 +156,14 @@
         try {
             let result;
             if (currentTreeholeHugged) {
-                result = await EchoAPI.unhugDiary(diaryId);
-                currentTreeholeHugged = false;
+                // 乐观更新：先改 UI，再发请求
                 updateHugButtonUI(btnEl, iconEl, false);
+                currentTreeholeHugged = false;
+                result = await EchoAPI.unhugDiary(diaryId);
             } else {
+                // 乐观更新：先改 UI，再发请求
+                updateHugButtonUI(btnEl, iconEl, true);
+                currentTreeholeHugged = true;
                 result = await EchoAPI.hugDiary(diaryId);
                 if (!result.already_hugged) {
                     // 动画只在首次抱抱时播放
@@ -171,8 +175,6 @@
                         setTimeout(() => { iconEl.style.color = ''; }, 600);
                     }
                 }
-                currentTreeholeHugged = true;
-                updateHugButtonUI(btnEl, iconEl, true);
             }
             if (countEl) countEl.textContent = result.hug_count || 0;
             // 同步更新另一个计数器
@@ -181,6 +183,14 @@
             if (thHugCount && thHugCount !== countEl) thHugCount.textContent = result.hug_count || 0;
         } catch (e) {
             console.error('抱抱操作失败:', e);
+            // 失败时回滚状态
+            if (!currentTreeholeHugged) {
+                currentTreeholeHugged = true;
+                updateHugButtonUI(btnEl, iconEl, true);
+            } else {
+                currentTreeholeHugged = false;
+                updateHugButtonUI(btnEl, iconEl, false);
+            }
         } finally {
             btnEl.disabled = false;
         }
