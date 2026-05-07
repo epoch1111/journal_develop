@@ -427,7 +427,7 @@
                         </button>
                         <button id="btnHug"
                                 class="flex items-center gap-1.5 px-5 py-3 rounded-full
-                                       bg-gradient-to-r from-pink-50 to-rose-50 text-pink-400 text-sm font-medium
+                                       bg-gradient-to-r from-pink-50 to-rose-50 text-gray-400 text-sm font-medium
                                        hover:from-pink-100 hover:to-rose-100 active:scale-95 transition-all select-none">
                             <i data-lucide="heart" class="w-4 h-4" id="hugIcon"></i>
                             <span id="hugCount">0</span>
@@ -1450,7 +1450,7 @@
     </div>
 
     <script src="/static/js/utils.js?v=20260504"></script>
-    <script src="/static/js/api.js?v=202605091200"></script>
+    <script src="/static/js/api.js?v=2026051001"></script>
     <script src="/static/js/components.js?v=202605081500"></script>
     <script src="/static/js/realtime.js?v=20260504"></script>
     <script src="/static/js/debug.js?v=202605071830"></script>
@@ -1458,6 +1458,11 @@
         // ===== 初始化 Lucide 图标 =====
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
             lucide.createIcons();
+        }
+
+        // ===== 检查远程地址是否可用 =====
+        if (window.EchoAPI) {
+            window.EchoAPI.checkRemoteHealth();
         }
 
         // ===== 心情色映射 =====
@@ -2267,7 +2272,7 @@
     </script>
     <script src="/static/js/views/timeline.js?v=202605072030"></script>
     <script src="/static/js/views/discover.js?v=202605091200"></script>
-    <script src="/static/js/views/treehole.js?v=202605081700"></script>
+    <script src="/static/js/views/treehole.js?v=2026051001"></script>
     <script src="/static/js/views/profile.js?v=202605091600"></script>
     <script src="/static/js/views/messages.js?v=2026050905"></script>
     <!-- ===== 图片查看器 ===== -->

@@ -22,6 +22,21 @@ window.EchoAPI = {
         }
     },
 
+    // 检查远程地址是否可用（连不上时提示清除）
+    async checkRemoteHealth() {
+        const url = this._getServerUrl();
+        if (!url) return;
+        try {
+            await fetch(url + '/api/auth/me', { method: 'GET' });
+            // 任意响应都算通
+        } catch (e) {
+            console.warn('远程服务器不可用：', e);
+            setTimeout(() => {
+                window.showToast && window.showToast('远程连接不可用，请清除设置中的远程地址后重试', 'error');
+            }, 1000);
+        }
+    },
+
     _url(path) {
         const base = this._getServerUrl();
         return base ? base + path : path;
@@ -47,7 +62,17 @@ window.EchoAPI = {
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
-        const res = await fetch(this._url(url), { ...options, headers });
+        let res;
+        try {
+            res = await fetch(this._url(url), { ...options, headers });
+        } catch (e) {
+            // 网络错误（如 CORS 跨域失败），且配置了远程地址时提示
+            if (this._getServerUrl() && (e.message === 'Failed to fetch' || e.message.includes('fetch') || e.name === 'TypeError')) {
+                console.error('远程服务器连接失败：', e);
+                window.showToast && window.showToast('远程连接失败，请在设置中重新配置或清除远程地址', 'error');
+            }
+            throw e;
+        }
         if (res.status === 401) {
             this.setToken('');
             window.EchoAuth && window.EchoAuth.showLogin();

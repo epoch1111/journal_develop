@@ -4,6 +4,15 @@
 (function() {
     'use strict';
 
+    // 注入抱抱动画样式
+    (function() {
+        if (document.getElementById('hug-animate-style')) return;
+        const style = document.createElement('style');
+        style.id = 'hug-animate-style';
+        style.textContent = '@keyframes hug-pop{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}} .hug-animate{animation:hug-pop 0.5s ease-out}';
+        document.head.appendChild(style);
+    })();
+
     // ===== DOM 元素引用 =====
     const treeholeCard = document.getElementById('treeholeCard');
     const treeholeEmpty = document.getElementById('treeholeEmpty');
@@ -112,7 +121,7 @@
                 treeholeEmpty.classList.remove('hidden');
             } else {
                 currentTreeholeDiaryId = data.id;
-                currentTreeholeHugged = false;
+                currentTreeholeHugged = !!data.is_hugged;
                 treeholeCard.classList.remove('hidden');
                 treeholeEmpty.classList.add('hidden');
                 treeholeCard.classList.remove('drift-enter');
@@ -134,20 +143,35 @@
                     imgEl.src = '';
                 }
                 hugCountEl.textContent = data.hug_count || 0;
-                hugIcon.setAttribute('class', 'w-4 h-4');
-                updateHugButtonUI(btnHug, hugIcon, false);
             }
         } catch (e) {
             console.error('加载树洞失败:', e);
         }
         lucide.createIcons();
+        // 等 Lucide 生成 SVG 后再更新抱抱样式
+        const svgIcon = document.getElementById('hugIcon');
+        updateHugButtonUI(btnHug, svgIcon, currentTreeholeHugged);
     };
 
     function updateHugButtonUI(btn, icon, hugged) {
-        if (hugged) {
-            if (icon) icon.classList.add('fill-pink-400');
-        } else {
-            if (icon) icon.classList.remove('fill-pink-400');
+        if (btn) {
+            if (hugged) {
+                btn.classList.add('text-pink-400');
+                btn.classList.remove('text-gray-400');
+            } else {
+                btn.classList.remove('text-pink-400');
+                btn.classList.add('text-gray-400');
+            }
+        }
+        // 直接操作 SVG fill 属性，不依赖 Lucide class
+        if (icon) {
+            if (hugged) {
+                icon.setAttribute('fill', '#f472b6');
+                icon.setAttribute('stroke', '#f472b6');
+            } else {
+                icon.setAttribute('fill', 'none');
+                icon.setAttribute('stroke', 'currentColor');
+            }
         }
     }
 
@@ -429,7 +453,8 @@
 
     btnHug.addEventListener('click', () => {
         if (!currentTreeholeDiaryId) return;
-        toggleTreeholeHug(currentTreeholeDiaryId, btnHug, hugIcon, hugCountEl);
+        const svgIcon = btnHug.querySelector('svg');
+        toggleTreeholeHug(currentTreeholeDiaryId, btnHug, svgIcon, hugCountEl);
     });
 
     // 树洞回复

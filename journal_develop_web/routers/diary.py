@@ -93,9 +93,10 @@ async def treehole_create(body: dict = Body(...), user=Depends(require_user)):
 
 
 @router.get("/treehole/random", response_model=TreeHoleDiary)
-async def treehole_random():
+async def treehole_random(user=Depends(get_optional_user)):
     """随机获取一条树洞日记（匿名）"""
-    diary = get_treehole_diary()
+    viewer_id = user["id"] if user else None
+    diary = get_treehole_diary(viewer_id)
     if not diary:
         raise HTTPException(status_code=404, detail="暂时还没有人投递漂流瓶哦～")
     return TreeHoleDiary(**diary)

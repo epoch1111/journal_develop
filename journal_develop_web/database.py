@@ -2265,6 +2265,19 @@ def remove_treehole_hug(diary_id: int, user_id: int) -> bool:
     return affected > 0
 
 
+def has_hugged_treehole(diary_id: int, user_id: int) -> bool:
+    """检查用户是否已抱抱过某条树洞"""
+    if not user_id:
+        return False
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id FROM treehole_hugs WHERE diary_id = ? AND user_id = ?",
+        (diary_id, user_id),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
 def decrement_hug_count(diary_id: int) -> int:
     """抱抱计数 -1（不低于 0），返回新的 hug_count"""
     conn = get_connection()

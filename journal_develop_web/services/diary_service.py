@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
 
-from database import save_diary_to_db, get_all_diaries_from_db, get_diary_stats, get_random_public_diary, increment_hug_count, decrement_hug_count, get_diaries_by_date, get_diary_by_id, update_diary as db_update_diary, delete_diary as db_delete_diary, set_diary_images, get_diary_images, get_multi_diary_images, get_treehole_by_id, save_treehole_reply, list_treehole_replies, save_treehole_hug, remove_treehole_hug, get_treehole_reply_by_id, save_treehole_reply_like, remove_treehole_reply_like, count_treehole_reply_likes, get_treehole_reply_full, get_or_create_treehole_identity
+from database import save_diary_to_db, get_all_diaries_from_db, get_diary_stats, get_random_public_diary, increment_hug_count, decrement_hug_count, get_diaries_by_date, get_diary_by_id, update_diary as db_update_diary, delete_diary as db_delete_diary, set_diary_images, get_diary_images, get_multi_diary_images, get_treehole_by_id, save_treehole_reply, list_treehole_replies, save_treehole_hug, remove_treehole_hug, has_hugged_treehole, get_treehole_reply_by_id, save_treehole_reply_like, remove_treehole_reply_like, count_treehole_reply_likes, get_treehole_reply_full, get_or_create_treehole_identity
 from config import MOOD_COLORS
 
 MAX_CONTENT_LENGTH = 10000
@@ -180,11 +180,12 @@ def get_mood_stats(user_id: int = None) -> dict:
     }
 
 
-def get_treehole_diary() -> dict | None:
+def get_treehole_diary(viewer_id: int | None = None) -> dict | None:
     """获取一条随机树洞日记（匿名，不返回 user_id）"""
     diary = get_random_public_diary()
     if diary:
         diary.pop("user_id", None)
+        diary["is_hugged"] = has_hugged_treehole(diary["id"], viewer_id) if viewer_id else False
     return diary
 
 

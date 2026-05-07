@@ -22,6 +22,7 @@ class TreeHoleDiary(BaseModel):
     mood: str
     content: str
     hug_count: int
+    is_hugged: bool = False
 
 
 class HugResponse(BaseModel):
