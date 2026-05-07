@@ -25,11 +25,13 @@
     const planeOverlay      = document.getElementById('planeOverlay');
     const planeIcon         = document.getElementById('planeIcon');
     const planeToast        = document.getElementById('planeToast');
+    const writeTagBtns      = document.querySelectorAll('.write-tag-btn');
 
     // === 状态 ===
     let aiEnabled = false;
     let aiResult = null;
     let currentImageUrls = [];
+    let selectedWriteTags = new Set();
 
     // === 图片选择与上传（多图） ===
     function renderWriteThumbnails() {
@@ -106,6 +108,10 @@
         currentImageUrls = [];
         imageThumbnails.innerHTML = '';
         imagePreviewArea.classList.add('hidden');
+        selectedWriteTags = new Set();
+        writeTagBtns.forEach(btn => {
+            btn.className = 'write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 shrink-0 active:scale-95 transition-all';
+        });
         imageUploadStatus.textContent = '';
         imageUploadStatus.className = 'text-[10px] text-gray-300 hidden';
         btnPickImage.innerHTML = '<i data-lucide="image" class="w-4 h-4"></i> 添加图片';
@@ -135,6 +141,20 @@
         btn.addEventListener('click', () => {
             moodBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+        });
+    });
+
+    // === 话题标签选择 ===
+    writeTagBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tag = btn.dataset.tag;
+            if (selectedWriteTags.has(tag)) {
+                selectedWriteTags.delete(tag);
+                btn.className = 'write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 shrink-0 active:scale-95 transition-all';
+            } else {
+                selectedWriteTags.add(tag);
+                btn.className = 'write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-600 shrink-0 active:scale-95 transition-all';
+            }
         });
     });
 
@@ -193,7 +213,9 @@
             return;
         }
 
-        const tagsStr = aiResult ? (aiResult.tags || []).join(',') : '';
+        const tagsStr = aiResult
+            ? [...new Set([...(aiResult.tags || []), ...selectedWriteTags])].join(',')
+            : [...selectedWriteTags].join(',');
         const summary = aiResult ? (aiResult.summary || '') : '';
         const message = aiResult ? (aiResult.message || '') : '';
         const isPublic = window.composeMode === 'public';

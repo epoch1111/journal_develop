@@ -360,6 +360,12 @@ window.EchoAPI = {
         return res.json();
     },
 
+    async searchUsers(keyword) {
+        const res = await this._authFetch(`/api/users/search?keyword=${encodeURIComponent(keyword)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    },
+
     async fetchMyFollowing() {
         const res = await this._authFetch('/api/me/following');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

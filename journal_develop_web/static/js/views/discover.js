@@ -37,6 +37,7 @@
     // State variables
     let discFeedMode = 'all'; // 'all' | 'following'
     let discMood = '';
+    let discSearchMode = 'diary'; // 'diary' | 'user'
     let discTag = '';
     let discKeyword = '';
     let discPage = 1;
@@ -85,6 +86,32 @@
     btnFeedAll.addEventListener('click', () => window.switchDiscoverFeed('all'));
     btnFeedFollowing.addEventListener('click', () => window.switchDiscoverFeed('following'));
 
+    // === 搜索模式切换：日记 / 用户 ===
+    const discTabDiary = document.getElementById('discTabDiary');
+    const discTabUser = document.getElementById('discTabUser');
+
+    window.switchDiscSearchMode = function(mode) {
+        discSearchMode = mode;
+        if (mode === 'diary') {
+            discTabDiary.className = 'px-3 py-1 rounded-full text-xs font-medium transition-all bg-white text-emerald-600 shadow-sm';
+            discTabUser.className = 'px-3 py-1 rounded-full text-xs font-medium transition-all text-gray-400';
+            moodFilterBar.classList.remove('hidden');
+            tagFilterBar.classList.remove('hidden');
+            discoverSearch.placeholder = '搜索日记、标签、昵称或心情';
+        } else {
+            discTabDiary.className = 'px-3 py-1 rounded-full text-xs font-medium transition-all text-gray-400';
+            discTabUser.className = 'px-3 py-1 rounded-full text-xs font-medium transition-all bg-white text-emerald-600 shadow-sm';
+            moodFilterBar.classList.add('hidden');
+            tagFilterBar.classList.add('hidden');
+            discoverSearch.placeholder = '搜索用户名或昵称';
+        }
+        discPage = 1;
+        discKeyword = discoverSearch.value.trim();
+        window.loadDiscover(true);
+    };
+    if (discTabDiary) discTabDiary.addEventListener('click', () => window.switchDiscSearchMode('diary'));
+    if (discTabUser) discTabUser.addEventListener('click', () => window.switchDiscSearchMode('user'));
+
     // === 加载发现页数据 ===
     window.loadDiscover = async function(reset = true) {
         if (reset) { discPage = 1; discoverList.innerHTML = ''; }
@@ -103,6 +130,31 @@
             let data;
             if (discFeedMode === 'following') {
                 data = await EchoAPI.fetchFollowingFeed({ page: discPage, page_size: 10 });
+            } else if (discSearchMode === 'user') {
+                if (!discKeyword) {
+                    discoverList.innerHTML = '';
+                    discoverEmpty.classList.remove('hidden');
+                    const emptyTitle = discoverEmpty.querySelector('.disc-empty-title');
+                    const emptySub = discoverEmpty.querySelector('.disc-empty-sub');
+                    if (emptyTitle) emptyTitle.textContent = '搜索用户名或昵称';
+                    if (emptySub) emptySub.textContent = '找到志同道合的日记作者';
+                    lucide.createIcons();
+                    return;
+                }
+                data = await EchoAPI.searchUsers(discKeyword);
+                const items = data.users || [];
+                discHasMore = false;
+                if (discPage === 1 && items.length === 0) {
+                    discoverEmpty.classList.remove('hidden');
+                    const emptyTitle = discoverEmpty.querySelector('.disc-empty-title');
+                    const emptySub = discoverEmpty.querySelector('.disc-empty-sub');
+                    if (emptyTitle) emptyTitle.textContent = '没有找到相关用户';
+                    if (emptySub) emptySub.textContent = '换个用户名或昵称试试';
+                } else {
+                    window.renderUserSearchResults(items, discPage > 1);
+                }
+                lucide.createIcons();
+                return;
             } else {
                 data = await EchoAPI.fetchPublicDiaries({
                     page: discPage, page_size: 10,
@@ -186,6 +238,31 @@
             if (authorBtn) authorBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openAuthorProfile(d.user_id || 1);
+            });
+            discoverList.appendChild(card);
+        });
+    };
+
+    // === 用户搜索结果渲染 ===
+    window.renderUserSearchResults = function(users, append = false) {
+        if (!append) discoverList.innerHTML = '';
+        users.forEach((u, i) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-2xl p-4 shadow-sm card-enter cursor-pointer hover:shadow-md active:scale-[0.98] transition-all flex items-center gap-3';
+            card.style.animationDelay = `${i * 0.05}s`;
+            card.innerHTML = `
+                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center shrink-0 text-lg">
+                    ${u.avatar ? (u.avatar.startsWith('/') ? `<img src="${u.avatar}" class="w-full h-full rounded-full object-cover" alt="">` : u.avatar) : '🐰'}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(u.nickname || '小兔')}</p>
+                    <p class="text-xs text-gray-400 truncate">@${escapeHtml(u.username || '')} · ${u.public_diary_count || 0} 篇公开日记</p>
+                    ${u.bio ? `<p class="text-xs text-gray-400 truncate mt-0.5">${escapeHtml(u.bio)}</p>` : ''}
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 shrink-0"></i>
+            `;
+            card.addEventListener('click', () => {
+                window.openAuthorProfile && window.openAuthorProfile(u.id);
             });
             discoverList.appendChild(card);
         });

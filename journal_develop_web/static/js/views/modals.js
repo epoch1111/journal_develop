@@ -749,6 +749,8 @@
         if (!btn) return;
         const uid = parseInt(btn.dataset.userId);
         if (!uid || uid <= 0) return;
+        if (window.closeSafetyCenter) window.closeSafetyCenter();
+        if (window.closeNotificationCenter) window.closeNotificationCenter();
         window.openAuthorProfile && window.openAuthorProfile(uid);
     });
 })();

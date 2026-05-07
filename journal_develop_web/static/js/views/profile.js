@@ -903,18 +903,14 @@
         lucide.createIcons();
     };
 
-    document.getElementById('btnCloseSafetyCenter').addEventListener('click', () => {
+    window.closeSafetyCenter = function () {
         _safetyOverlay.style.visibility = 'hidden';
         _safetyOverlay.classList.add('opacity-0', 'pointer-events-none');
         _safetyOverlay.classList.remove('opacity-100');
-    });
-    _safetyOverlay.addEventListener('click', (e) => {
-        if (e.target === _safetyOverlay) {
-            _safetyOverlay.style.visibility = 'hidden';
-            _safetyOverlay.classList.add('opacity-0', 'pointer-events-none');
-            _safetyOverlay.classList.remove('opacity-100');
-        }
-    });
+    };
+
+    document.getElementById('btnCloseSafetyCenter').addEventListener('click', window.closeSafetyCenter);
+    _safetyOverlay.addEventListener('click', (e) => { if (e.target === _safetyOverlay) window.closeSafetyCenter(); });
 
     document.getElementById('safetyTabBlocked').addEventListener('click', () => { safetyTab = 'blocked'; updateSafetyTabs(); loadSafetyContent(); });
     document.getElementById('safetyTabReports').addEventListener('click', () => { safetyTab = 'reports'; updateSafetyTabs(); loadSafetyContent(); });
@@ -945,8 +941,7 @@
                     _safetyContent.querySelectorAll('.blocked-user-card').forEach(card => {
                         card.addEventListener('click', () => {
                             const uid = parseInt(card.dataset.uid);
-                            _safetyOverlay.style.visibility = 'hidden';
-                            _safetyOverlay.classList.add('opacity-0', 'pointer-events-none');
+                            closeSafetyCenter();
                             setTimeout(() => openAuthorProfile(uid), 300);
                         });
                     });
@@ -957,15 +952,41 @@
                     _safetyContent.innerHTML = '<p class="text-center text-gray-400 py-20">还没有举报记录</p>';
                 } else {
                     const typeLabel = { diary: '日记', comment: '评论', user: '用户', treehole: '树洞', treehole_reply: '树洞回复' };
+                    const reasonLabel = { harassment: '骚扰', spam: '垃圾信息', sexual: '色情/低俗', violence: '暴力/血腥', privacy: '隐私泄露', scam: '诈骗', other: '其他' };
+                    const statusClass = {
+                        'pending': 'bg-amber-50 text-amber-500',
+                        'reviewed': 'bg-blue-50 text-blue-500',
+                        'resolved': 'bg-emerald-50 text-emerald-500',
+                        'dismissed': 'bg-gray-100 text-gray-400',
+                    };
                     _safetyContent.innerHTML = data.map(r => `
-                        <div class="bg-gray-50 rounded-2xl p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">${typeLabel[r.target_type] || r.target_type}</span>
+                        <div class="bg-gray-50 rounded-2xl p-4 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">${typeLabel[r.target_type] || r.target_type}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-medium ${statusClass[r.status] || statusClass['pending']}">${r.status_label || '待处理'}</span>
+                                </div>
                                 <span class="text-[10px] text-gray-300">${formatDate(r.created_at)}</span>
                             </div>
-                            <p class="text-sm text-gray-600">${escapeHtml(r.reason || '')}</p>
+                            ${r.target_nickname ? `
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center text-xs shadow-sm shrink-0 hover:scale-110 active:scale-95 transition-transform report-user-avatar" data-uid="${r.target_user_id}" data-avatar="${escapeHtml(r.target_avatar || '🐰')}" data-name="${escapeHtml(r.target_username || r.target_nickname)}">
+                                    ${r.target_avatar && r.target_avatar.startsWith('/') ? '<img src="'+r.target_avatar+'" class="w-full h-full rounded-full object-cover">' : (r.target_avatar || '🐰')}
+                                </div>
+                                <span class="text-xs text-gray-500 hover:text-emerald-500 transition-colors cursor-pointer report-user-name" data-uid="${r.target_user_id}">@${escapeHtml(r.target_username || r.target_nickname)}</span>
+                            </div>` : ''}
+                            ${r.target_excerpt ? `<p class="text-xs text-gray-400 bg-white rounded-xl px-3 py-2 line-clamp-2">${escapeHtml(r.target_excerpt)}</p>` : ''}
+                            <p class="text-sm text-gray-600">${reasonLabel[r.reason] || r.reason || ''}</p>
                         </div>
                     `).join('');
+                    // 举报记录中点击用户头像/名字 → 跳转个人主页
+                    _safetyContent.querySelectorAll('.report-user-avatar, .report-user-name').forEach(el => {
+                        el.addEventListener('click', () => {
+                            const uid = parseInt(el.dataset.uid);
+                            closeSafetyCenter();
+                            setTimeout(() => openAuthorProfile(uid), 300);
+                        });
+                    });
                 }
             }
         } catch (e) {

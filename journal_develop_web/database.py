@@ -1045,6 +1045,34 @@ def get_user_public_diary_count(user_id: int):
     return row["cnt"] if row else 0
 
 
+def search_users_by_keyword(keyword: str, viewer_id: int = None, limit: int = 20) -> list[dict]:
+    """搜索用户（按用户名或昵称），排除自己，过滤拉黑"""
+    conn = get_connection()
+    like_kw = f"%{keyword}%"
+    blocked_ids = set(get_blocked_user_ids(viewer_id)) if viewer_id else set()
+    if viewer_id:
+        blocked_ids.add(viewer_id)
+
+    exclude_clause = ""
+    if blocked_ids:
+        placeholders = ",".join(["?"] * len(blocked_ids))
+        exclude_clause = f" AND u.id NOT IN ({placeholders})"
+
+    rows = conn.execute(
+        f"""SELECT u.id, u.username, u.nickname, u.avatar, u.bio,
+                   (SELECT COUNT(*) FROM diaries d
+                    WHERE d.user_id = u.id AND d.content_type = 'diary'
+                    AND d.is_public = 1 AND (d.unlock_date IS NULL OR d.unlock_date = '')) AS public_diary_count
+            FROM users u
+            WHERE (u.username LIKE ? OR u.nickname LIKE ?){exclude_clause}
+            ORDER BY public_diary_count DESC, u.nickname
+            LIMIT ?""",
+        [like_kw, like_kw] + list(blocked_ids) + [limit],
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 # ===== 用户认证 =====
 
 def get_user_by_username(username: str):

@@ -242,8 +242,12 @@
             <!-- 搜索框 -->
             <div id="discoverSearchArea" class="relative">
                 <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300"></i>
-                <input id="discoverSearch" type="text" placeholder="搜索日记、标签、作者或心情" autocomplete="off"
+                <input id="discoverSearch" type="text" placeholder="搜索日记、标签、昵称或心情" autocomplete="off"
                        class="w-full pl-10 pr-4 py-3 rounded-2xl bg-white text-sm text-gray-700 placeholder-gray-300 border-0 shadow-sm focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all">
+                <div id="discSearchTabs" class="absolute right-3 top-1/2 -translate-y-1/2 flex bg-gray-100 rounded-full p-0.5 gap-0.5">
+                    <button id="discTabDiary" class="px-3 py-1 rounded-full text-xs font-medium transition-all bg-white text-emerald-600 shadow-sm">日记</button>
+                    <button id="discTabUser" class="px-3 py-1 rounded-full text-xs font-medium transition-all text-gray-400">用户</button>
+                </div>
             </div>
             <!-- 心情筛选 -->
             <div id="moodFilterBar" class="filter-scroll hide-scrollbar items-center gap-2">
@@ -619,6 +623,20 @@
                 <textarea id="diaryContent"
                           class="w-full h-full resize-none text-[16px] text-gray-700 leading-relaxed placeholder-gray-300 bg-transparent"
                           placeholder="今天发生了什么有趣的事呢..."></textarea>
+            </div>
+
+            <!-- 话题标签选择 -->
+            <div id="writeTagBar" class="shrink-0 px-6 py-1">
+                <div id="writeTagScroll" class="flex flex-wrap gap-2">
+                    <span class="text-[11px] text-gray-400 shrink-0 self-center">话题</span>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="生活">生活</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="学习">学习</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="emo">emo</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="小确幸">小确幸</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="成长">成长</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="旅行">旅行</button>
+                    <button class="write-tag-btn px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 active:scale-95 transition-all" data-tag="美好">美好</button>
+                </div>
             </div>
 
             <!-- AI 结果展示区（默认隐藏） -->
@@ -1432,7 +1450,7 @@
     </div>
 
     <script src="/static/js/utils.js?v=20260504"></script>
-    <script src="/static/js/api.js?v=2026050903"></script>
+    <script src="/static/js/api.js?v=202605091200"></script>
     <script src="/static/js/components.js?v=202605081500"></script>
     <script src="/static/js/realtime.js?v=20260504"></script>
     <script src="/static/js/debug.js?v=202605071830"></script>
@@ -2248,9 +2266,9 @@
         })();
     </script>
     <script src="/static/js/views/timeline.js?v=202605072030"></script>
-    <script src="/static/js/views/discover.js?v=202605081700"></script>
+    <script src="/static/js/views/discover.js?v=202605091200"></script>
     <script src="/static/js/views/treehole.js?v=202605081700"></script>
-    <script src="/static/js/views/profile.js?v=2026050905"></script>
+    <script src="/static/js/views/profile.js?v=202605091600"></script>
     <script src="/static/js/views/messages.js?v=2026050905"></script>
     <!-- ===== 图片查看器 ===== -->
     <div id="imgViewerOverlay" class="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200">
@@ -2266,8 +2284,8 @@
         </button>
     </div>
 
-    <script src="/static/js/views/compose.js?v=202605072030"></script>
+    <script src="/static/js/views/compose.js?v=202605091300"></script>
     <script src="/static/js/views/diary.js?v=202605081700"></script>
-    <script src="/static/js/views/modals.js?v=2026050905"></script>
+    <script src="/static/js/views/modals.js?v=202605091600"></script>
 </body>
 </html>

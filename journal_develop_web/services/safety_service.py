@@ -173,5 +173,69 @@ def create_report(current_user_id: int, target_type: str, target_id: int,
 
 
 def list_my_reports(current_user_id: int) -> list[dict]:
-    """我的举报记录"""
-    return db_list_my_reports(current_user_id)
+    """我的举报记录，附加被举报内容详情"""
+    from database import (
+        get_diary_by_id, get_comment_by_id as db_get_comment,
+        get_treehole_by_id, get_treehole_reply_by_id as db_get_treehole_reply,
+        get_user_by_id,
+    )
+
+    reports = db_list_my_reports(current_user_id)
+    status_labels = {
+        "pending": "待处理",
+        "reviewed": "处理中",
+        "resolved": "已处理",
+        "dismissed": "已驳回",
+    }
+
+    for r in reports:
+        r["status_label"] = status_labels.get(r.get("status", "pending"), "待处理")
+        # 填充被举报内容详情
+        target_type = r.get("target_type", "")
+        target_id = r.get("target_id", 0)
+        target_user_id = r.get("target_user_id")
+
+        # 被举报人信息
+        if target_user_id:
+            target_user = get_user_by_id(target_user_id)
+            if target_user:
+                r["target_nickname"] = target_user.get("nickname", "")
+                r["target_avatar"] = target_user.get("avatar", "🐰")
+                r["target_username"] = target_user.get("username", "")
+
+        # 被举报内容
+        r["target_content"] = ""
+        r["target_excerpt"] = ""
+
+        if target_type == "diary":
+            diary = get_diary_by_id(target_id)
+            if diary:
+                r["target_content"] = diary.get("content", "")
+                r["target_excerpt"] = (diary.get("content") or "")[:100]
+                r["target_mood"] = diary.get("mood", "")
+
+        elif target_type == "comment":
+            comment = db_get_comment(target_id)
+            if comment:
+                r["target_content"] = comment.get("content", "")
+                r["target_excerpt"] = (comment.get("content") or "")[:100]
+
+        elif target_type == "treehole":
+            diary = get_diary_by_id(target_id)
+            if diary:
+                r["target_content"] = diary.get("content", "")
+                r["target_excerpt"] = (diary.get("content") or "")[:100]
+
+        elif target_type == "treehole_reply":
+            reply = db_get_treehole_reply(target_id)
+            if reply:
+                r["target_content"] = reply.get("content", "")
+                r["target_excerpt"] = (reply.get("content") or "")[:100]
+
+        elif target_type == "user":
+            user = get_user_by_id(target_id)
+            if user:
+                r["target_content"] = user.get("bio", "")
+                r["target_excerpt"] = (user.get("bio") or "")[:100]
+
+    return reports

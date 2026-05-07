@@ -25,6 +25,7 @@ from routers.contacts import router as contacts_router
 from routers.ws import router as ws_router
 from routers.seed_demo import router as seed_demo_router
 from routers.app_version import router as app_version_router
+from routers.users import router as users_router
 
 app = FastAPI(title="Echo - 治愈系智能日记")
 
@@ -68,6 +69,7 @@ app.include_router(contacts_router)
 app.include_router(ws_router)
 app.include_router(seed_demo_router)
 app.include_router(app_version_router)
+app.include_router(users_router)
 
 
 @app.get("/", response_class=HTMLResponse)
