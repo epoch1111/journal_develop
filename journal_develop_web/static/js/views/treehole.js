@@ -22,7 +22,6 @@
     const btnTreeholeReply = document.getElementById('btnTreeholeReply');
     const btnTreeholeReport = document.getElementById('btnTreeholeReport');
     const btnTreeholeSend = document.getElementById('btnTreeholeSend');
-    const btnRefresh = document.getElementById('btnRefresh');
     const treeholeComposeOverlay = document.getElementById('treeholeComposeOverlay');
     const treeholeComposeContent = document.getElementById('treeholeComposeContent');
     const treeholeMoodBtns = document.querySelectorAll('.treehole-mood-btn');
@@ -49,6 +48,10 @@
     let treeholeImageUrls = [];
     let currentTreeholeDiaryId = null;
     let currentTreeholeHugged = false;
+
+    // 树洞浏览历史（上一个/下一个）
+    let treeholeHistory = [];   // 已浏览过的卡片队列
+    let treeholeHistoryIdx = -1; // 当前在历史中的位置，-1 表示没看过任何卡片
     let thDetailCurrentId = null;
     let currentTreeholeDetailData = null;
     let thReplyToReplyId = null;
@@ -112,6 +115,13 @@
 
     // ===== 树洞 =====
 
+    function updateTreeholeNavButtons() {
+        const btnPrev = document.getElementById('btnTreeholePrev');
+        const btnNext = document.getElementById('btnTreeholeNext');
+        if (btnPrev) btnPrev.disabled = treeholeHistoryIdx <= 0;
+        if (btnNext) btnNext.disabled = false; // 下一个永远可点，到头会加载新卡片
+    }
+
     window.loadTreehole = async function() {
         try {
             const data = await EchoAPI.fetchTreeholeRandom();
@@ -119,36 +129,52 @@
                 currentTreeholeDiaryId = null;
                 treeholeCard.classList.add('hidden');
                 treeholeEmpty.classList.remove('hidden');
+                updateTreeholeNavButtons();
             } else {
-                currentTreeholeDiaryId = data.id;
-                currentTreeholeHugged = !!data.is_hugged;
-                treeholeCard.classList.remove('hidden');
-                treeholeEmpty.classList.add('hidden');
-                treeholeCard.classList.remove('drift-enter');
-                void treeholeCard.offsetWidth;
-                treeholeCard.classList.add('drift-enter');
-                treeholeMood.textContent = data.mood || '🥰';
-                treeholeContent.textContent = data.content || '';
-                // 卡片缩略图
-                const imgEl = document.getElementById('treeholeCardImage');
-                const urls = data.image_urls || [];
-                if (urls.length > 0) {
-                    imgEl.src = urls[0];
-                    imgEl.dataset.gallery = btoa(encodeURIComponent(JSON.stringify(urls)));
-                    imgEl.dataset.idx = '0';
-                    imgEl.classList.remove('hidden');
-                    imgEl.classList.add('cursor-pointer', 'hover:opacity-90', 'transition-opacity');
-                } else {
-                    imgEl.classList.add('hidden');
-                    imgEl.src = '';
+                // 加入历史队列（仅当不是回退操作时）
+                if (treeholeHistoryIdx !== treeholeHistory.length - 1) {
+                    // 回退后再进入新卡片，截断后面的历史
+                    treeholeHistory = treeholeHistory.slice(0, treeholeHistoryIdx + 1);
                 }
-                hugCountEl.textContent = data.hug_count || 0;
+                treeholeHistory.push({ id: data.id, data });
+                treeholeHistoryIdx = treeholeHistory.length - 1;
+                renderTreeholeCard(data);
+                updateTreeholeNavButtons();
             }
         } catch (e) {
             console.error('加载树洞失败:', e);
         }
+    };
+
+    window.renderTreeholeCard = function(data) {
+        currentTreeholeDiaryId = data.id;
+        currentTreeholeHugged = !!data.is_hugged;
+        treeholeCard.classList.remove('hidden');
+        treeholeEmpty.classList.add('hidden');
+        treeholeCard.classList.remove('drift-enter');
+        void treeholeCard.offsetWidth;
+        treeholeCard.classList.add('drift-enter');
+        treeholeMood.textContent = data.mood || '🥰';
+        treeholeContent.textContent = data.content || '';
+        const imgContainer = document.getElementById('treeholeCardImages');
+        const urls = data.image_urls || [];
+        if (urls.length > 0) {
+            const html = window.renderImageGallery(urls, {
+                maxHeight: urls.length === 1 ? 'h-32' : 'h-16',
+                objectFit: urls.length === 1 ? 'contain' : 'cover',
+                className: urls.length === 1 ? 'rounded-2xl shadow-sm border border-gray-100 mb-4' : 'rounded-xl shadow-sm border border-gray-100 gap-2',
+                gridCols: Math.min(urls.length, 3)
+            });
+            imgContainer.innerHTML = urls.length === 1
+                ? `<div class="mb-4">${html}</div>`
+                : `${html}${urls.length > 3 ? `<div class="mt-2 text-center text-xs text-gray-400 py-1">+${urls.length - 3} 张</div>` : ''}`;
+            imgContainer.classList.remove('hidden');
+        } else {
+            imgContainer.classList.add('hidden');
+            imgContainer.innerHTML = '';
+        }
+        hugCountEl.textContent = data.hug_count || 0;
         lucide.createIcons();
-        // 等 Lucide 生成 SVG 后再更新抱抱样式
         const svgIcon = document.getElementById('hugIcon');
         updateHugButtonUI(btnHug, svgIcon, currentTreeholeHugged);
     };
@@ -333,7 +359,7 @@
                 </div>
             </div>
             <!-- 正文 -->
-            ${d.image_urls && d.image_urls.length && window.renderImageGallery ? window.renderImageGallery(d.image_urls, { maxHeight: 'h-32', objectFit: 'contain' }) : ''}
+            ${d.image_urls && d.image_urls.length && window.renderImageGallery ? window.renderImageGallery(d.image_urls, { maxHeight: 'h-24', objectFit: 'contain' }) : ''}
             <p class="text-[15px] text-gray-700 leading-relaxed mb-4 whitespace-pre-wrap">${escapeHtml(d.content || '')}</p>
             ${tagHtml ? `<div class="flex flex-wrap gap-2 mb-4">${tagHtml}</div>` : ''}
             <time class="text-xs text-gray-400 block mb-4">${formatDate(d.created_at)}</time>
@@ -448,8 +474,28 @@
         }
     });
 
-    // 树洞主区域
-    btnRefresh.addEventListener('click', loadTreehole);
+    window.__thPrev = function() {
+        if (treeholeHistoryIdx <= 0) return;
+        treeholeHistoryIdx--;
+        renderTreeholeCard(treeholeHistory[treeholeHistoryIdx].data);
+        updateTreeholeNavButtons();
+    };
+
+    window.__thNext = function() {
+        if (treeholeHistoryIdx < treeholeHistory.length - 1) {
+            treeholeHistoryIdx++;
+            renderTreeholeCard(treeholeHistory[treeholeHistoryIdx].data);
+        } else {
+            loadTreehole();
+        }
+        updateTreeholeNavButtons();
+    };
+
+    // 按钮事件代理 - 在 treeholeCard 区域用事件委托，不会被 Lucide SVG 替换影响
+    treeholeCard.addEventListener('click', (e) => {
+        if (e.target.closest('#btnTreeholePrev')) window.__thPrev();
+        else if (e.target.closest('#btnTreeholeNext')) window.__thNext();
+    });
 
     btnHug.addEventListener('click', () => {
         if (!currentTreeholeDiaryId) return;

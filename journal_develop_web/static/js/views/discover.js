@@ -199,48 +199,19 @@
         lucide.createIcons();
     };
 
-    // === 关注动态渲染（简化版，无点赞） ===
+    // === 关注动态渲染（无点赞按钮） ===
     window.renderDiscoverFollowingItems = function(items, append = false) {
         if (!append) discoverList.innerHTML = '';
         items.forEach((d, i) => {
-            const moodInfo = MOOD_MAP[d.mood] || MOOD_MAP['😊'];
-            const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
-            const tagHtml = tags.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">#${t.trim()}</span>`).join(' ');
-            const card = document.createElement('article');
-            card.className = 'bg-white rounded-3xl p-5 shadow-sm card-enter cursor-pointer hover:shadow-md transition-all';
-            card.style.animationDelay = `${i * 0.05}s`;
-            card.innerHTML = `
-                <div class="flex items-center justify-between mb-3">
-                    <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                        ${renderAvatar(d.author_avatar, 22)}
-                        <span class="text-xs font-medium text-gray-600">${d.author_name || '小兔'}</span>
-                    </button>
-                    <div class="flex items-center gap-2">
-                        <span class="text-2xl select-none">${d.mood || '📝'}</span>
-                        <span class="text-[10px] text-white px-2 py-0.5 rounded-full" style="background:${moodInfo.border}">${moodInfo.label}</span>
-                    </div>
-                </div>
-                <p class="text-[14px] text-gray-600 leading-relaxed mb-3 line-clamp-3">${escapeHtml(d.content || '')}</p>
-                ${tagHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${tagHtml}</div>` : ''}
-                <div class="flex items-center justify-between text-xs text-gray-400">
-                    <time>${formatDate(d.created_at)}</time>
-                    <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center gap-1"><i data-lucide="heart" class="w-3.5 h-3.5"></i> ${d.like_count || 0}</span>
-                        <span class="inline-flex items-center gap-1"><i data-lucide="message-circle" class="w-3.5 h-3.5"></i> ${d.comment_count || 0}</span>
-                    </div>
-                </div>
-            `;
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.disc-author-btn') || e.target.closest('button')) return;
-                window.openDiscDetail(d.id);
-            });
-            const authorBtn = card.querySelector('.disc-author-btn');
-            if (authorBtn) authorBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openAuthorProfile(d.user_id || 1);
+            const card = window.createPublicDiaryCard(d, {
+                index: i,
+                onDetail: (id) => window.openDiscDetail(id),
+                onAuthor: (uid) => openAuthorProfile(uid),
+                onLike: null,  // 关注动态不显示点赞按钮
             });
             discoverList.appendChild(card);
         });
+        lucide.createIcons();
     };
 
     // === 用户搜索结果渲染 ===
@@ -268,86 +239,41 @@
         });
     };
 
+    // === 共享点赞处理函数 ===
+    function handleDiscLike(diaryId) {
+        const item = discItems.find(x => x.id === diaryId);
+        if (!item) return;
+        const oldLiked = item.liked;
+        const oldCount = item.like_count || 0;
+        item.liked = !oldLiked;
+        item.like_count = oldLiked ? oldCount - 1 : oldCount + 1;
+        window.renderOneDiscoverCard(diaryId, item);
+        (async () => {
+            try {
+                const result = item.liked
+                    ? await EchoAPI.likePublicDiary(diaryId, echoClientId)
+                    : await EchoAPI.unlikePublicDiary(diaryId, echoClientId);
+                item.liked = result.liked;
+                item.like_count = result.like_count;
+                window.renderOneDiscoverCard(diaryId, item);
+            } catch (err) {
+                item.liked = oldLiked;
+                item.like_count = oldCount;
+                window.renderOneDiscoverCard(diaryId, item);
+                alert('点亮失败: ' + (err.message || err));
+            }
+        })();
+    }
+
     // === 公开日记列表渲染 ===
     window.renderDiscoverItems = function(items, append = false) {
         if (!append) discoverList.innerHTML = '';
         items.forEach((d, i) => {
-            const moodInfo = MOOD_MAP[d.mood] || MOOD_MAP['😊'];
-            const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
-            const tagHtml = tags.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">#${t.trim()}</span>`).join(' ');
-            const liked = !!d.liked;
-            const card = document.createElement('article');
-            card.className = 'bg-white rounded-3xl p-5 shadow-sm card-enter cursor-pointer hover:shadow-md transition-all';
-            card.style.animationDelay = `${i * 0.05}s`;
-            card.setAttribute('data-disc-id', d.id);
-            card.innerHTML = `
-                <div class="flex items-center justify-between mb-3">
-                    <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                        ${renderAvatar(d.author_avatar, 22)}
-                        <span class="text-xs font-medium text-gray-600">${d.author_name || '小兔'}</span>
-                        ${d.anonymous ? '<span class="text-[10px] text-gray-300">· 匿名</span>' : ''}
-                    </button>
-                    <div class="flex items-center gap-2">
-                        <span class="text-2xl select-none">${d.mood || '📝'}</span>
-                        <span class="text-[10px] text-white px-2 py-0.5 rounded-full" style="background:${moodInfo.border}">${moodInfo.label}</span>
-                    </div>
-                </div>
-                ${renderImageGallery(d.image_urls || (d.image_url ? [d.image_url] : []), { maxHeight: 'h-28', objectFit: 'contain' })}
-                <p class="text-[14px] text-gray-600 leading-relaxed mb-3 line-clamp-3">${escapeHtml(d.content || '')}</p>
-                ${tagHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${tagHtml}</div>` : ''}
-                <div class="flex items-center justify-between text-xs text-gray-400">
-                    <time>${formatDate(d.created_at)}</time>
-                    <div class="flex items-center gap-3">
-                        <button class="disc-like-btn inline-flex items-center gap-1 ${liked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-400 active:scale-95 transition-all select-none" data-diary-id="${d.id}">
-                            <i data-lucide="heart" class="w-3.5 h-3.5 ${liked ? 'fill-pink-400' : ''}"></i>
-                            <span class="disc-like-count">${d.like_count || 0}</span>
-                        </button>
-                        <span class="inline-flex items-center gap-1">
-                            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> ${d.comment_count || 0}
-                        </span>
-                    </div>
-                </div>
-            `;
-            // 点击卡片 → 打开详情（跳过按钮点击）
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.disc-like-btn') || e.target.closest('.disc-author-btn') || e.target.closest('button')) return;
-                window.openDiscDetail(d.id);
-            });
-            // 点击作者 → 打开作者主页
-            const authorBtn = card.querySelector('.disc-author-btn');
-            if (authorBtn) authorBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openAuthorProfile(d.user_id || 1);
-            });
-            // 点亮按钮
-            const likeBtn = card.querySelector('.disc-like-btn');
-            if (likeBtn) likeBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const btn = e.currentTarget;
-                const icon = btn.querySelector('i');
-                const countSpan = btn.querySelector('.disc-like-count');
-                const item = discItems.find(item => item.id === d.id);
-                if (!item) return;
-                const oldLiked = item.liked;
-                const oldCount = item.like_count || 0;
-                // 立即变
-                item.liked = !oldLiked;
-                item.like_count = oldLiked ? oldCount - 1 : oldCount + 1;
-                window.renderOneDiscoverCard(d.id, item);
-                try {
-                    const result = item.liked
-                        ? await EchoAPI.likePublicDiary(d.id, echoClientId)
-                        : await EchoAPI.unlikePublicDiary(d.id, echoClientId);
-                    item.liked = result.liked;
-                    item.like_count = result.like_count;
-                    window.renderOneDiscoverCard(d.id, item);
-                } catch (err) {
-                    // 回滚
-                    item.liked = oldLiked;
-                    item.like_count = oldCount;
-                    window.renderOneDiscoverCard(d.id, item);
-                    alert('点亮失败: ' + (err.message || err));
-                }
+            const card = window.createPublicDiaryCard(d, {
+                index: i,
+                onDetail: (id) => window.openDiscDetail(id),
+                onAuthor: (uid) => openAuthorProfile(uid),
+                onLike: handleDiscLike,
             });
             discoverList.appendChild(card);
         });
@@ -356,80 +282,12 @@
 
     // === 单卡重渲染（用于点赞乐观更新后刷新单卡） ===
     window.renderOneDiscoverCard = function(diaryId, d) {
-        const card = discoverList.querySelector(`[data-disc-id="${diaryId}"]`);
-        if (!card) return;
-        const moodInfo = MOOD_MAP[d.mood] || MOOD_MAP['😊'];
-        const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
-        const tagHtml = tags.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">#${t.trim()}</span>`).join(' ');
-        const liked = !!d.liked;
-        const oldCard = card;
-        const newCard = document.createElement('article');
-        newCard.className = 'bg-white rounded-3xl p-5 shadow-sm card-enter cursor-pointer hover:shadow-md transition-all';
-        newCard.setAttribute('data-disc-id', diaryId);
-        newCard.innerHTML = `
-            <div class="flex items-center justify-between mb-3">
-                <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
-                    ${renderAvatar(d.author_avatar, 22)}
-                    <span class="text-xs font-medium text-gray-600">${d.author_name || '小兔'}</span>
-                    ${d.anonymous ? '<span class="text-[10px] text-gray-300">· 匿名</span>' : ''}
-                </button>
-                <div class="flex items-center gap-2">
-                    <span class="text-2xl select-none">${d.mood || '📝'}</span>
-                    <span class="text-[10px] text-white px-2 py-0.5 rounded-full" style="background:${moodInfo.border}">${moodInfo.label}</span>
-                </div>
-            </div>
-            ${renderImageGallery(d.image_urls || (d.image_url ? [d.image_url] : []), { maxHeight: 'h-28', objectFit: 'contain' })}
-            <p class="text-[14px] text-gray-600 leading-relaxed mb-3 line-clamp-3">${escapeHtml(d.content || '')}</p>
-            ${tagHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${tagHtml}</div>` : ''}
-            <div class="flex items-center justify-between text-xs text-gray-400">
-                <time>${formatDate(d.created_at)}</time>
-                <div class="flex items-center gap-3">
-                    <button class="disc-like-btn inline-flex items-center gap-1 ${liked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-400 active:scale-95 transition-all select-none" data-diary-id="${d.id}">
-                        <i data-lucide="heart" class="w-3.5 h-3.5 ${liked ? 'fill-pink-400' : ''}"></i>
-                        <span class="disc-like-count">${d.like_count || 0}</span>
-                    </button>
-                    <span class="inline-flex items-center gap-1">
-                        <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> ${d.comment_count || 0}
-                    </span>
-                </div>
-            </div>`;
-        // 点击卡片 → 打开详情
-        newCard.addEventListener('click', (e) => {
-            if (e.target.closest('.disc-like-btn') || e.target.closest('.disc-author-btn') || e.target.closest('button')) return;
-            window.openDiscDetail(d.id);
-        });
-        // 点击作者 → 打开作者主页
-        const authorBtn = newCard.querySelector('.disc-author-btn');
-        if (authorBtn) authorBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openAuthorProfile(d.user_id || 1);
-        });
-        const likeBtn = newCard.querySelector('.disc-like-btn');
-        if (likeBtn) likeBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const btn = e.currentTarget;
-            const icon = btn.querySelector('i');
-            const countSpan = btn.querySelector('.disc-like-count');
-            const item = discItems.find(item => item.id === d.id);
-            if (!item) return;
-            const oldLiked = item.liked;
-            const oldCount = item.like_count || 0;
-            item.liked = !oldLiked;
-            item.like_count = oldLiked ? oldCount - 1 : oldCount + 1;
-            window.renderOneDiscoverCard(d.id, item);
-            try {
-                const result = item.liked
-                    ? await EchoAPI.likePublicDiary(d.id, echoClientId)
-                    : await EchoAPI.unlikePublicDiary(d.id, echoClientId);
-                item.liked = result.liked;
-                item.like_count = result.like_count;
-                window.renderOneDiscoverCard(d.id, item);
-            } catch (err) {
-                item.liked = oldLiked;
-                item.like_count = oldCount;
-                window.renderOneDiscoverCard(d.id, item);
-                alert('点亮失败: ' + (err.message || err));
-            }
+        const oldCard = discoverList.querySelector(`[data-disc-id="${diaryId}"]`);
+        if (!oldCard) return;
+        const newCard = window.createPublicDiaryCard(d, {
+            onDetail: (id) => window.openDiscDetail(id),
+            onAuthor: (uid) => openAuthorProfile(uid),
+            onLike: handleDiscLike,
         });
         oldCard.replaceWith(newCard);
         lucide.createIcons();

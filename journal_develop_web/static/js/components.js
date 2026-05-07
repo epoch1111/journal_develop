@@ -4,6 +4,87 @@
  */
 
 /**
+ * 生成公开日记卡片 DOM 元素
+ * 供发现页、关注动态等所有公开日记卡片使用
+ *
+ * @param {Object} d - 日记数据
+ * @param {Object} opts - 配置
+ * @param {number}   opts.index          - 列表索引（用于动画延迟）
+ * @param {Function} opts.onDetail       - 点击卡片回调 (diaryId)
+ * @param {Function} opts.onAuthor       - 点击作者回调 (userId)
+ * @param {Function} opts.onLike        - 点击点赞回调 (diaryId, btn, icon, countSpan)
+ * @param {boolean}  opts.isDetail      - 是否详情模式（不显示「阅读更多」等）
+ */
+function createPublicDiaryCard(d, opts) {
+    opts = opts || {};
+    const idx = opts.index || 0;
+    const moodInfo = (typeof MOOD_MAP !== 'undefined' ? MOOD_MAP[d.mood] : null) || { label: '分享', border: '#9CA3AF' };
+    const tags = d.tags ? d.tags.split(',').filter(Boolean) : [];
+    const tagHtml = tags.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">#${t.trim()}</span>`).join(' ');
+    const liked = !!d.liked;
+    const imageUrls = d.image_urls || (d.image_url ? [d.image_url] : []);
+
+    const card = document.createElement('article');
+    card.className = 'bg-white rounded-3xl p-5 shadow-sm card-enter cursor-pointer hover:shadow-md transition-all';
+    card.style.animationDelay = `${idx * 0.05}s`;
+    card.setAttribute('data-disc-id', d.id);
+
+    const imgHtml = (typeof renderImageGallery !== 'undefined')
+        ? renderImageGallery(imageUrls, { maxHeight: 'h-28', objectFit: 'contain' })
+        : '';
+
+    card.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+            <button class="disc-author-btn flex items-center gap-2 hover:opacity-80 active:scale-95 transition-all" data-user-id="${d.user_id || 1}">
+                <span class="w-5.5 h-5.5 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-base shrink-0 select-none">${escapeHtml(d.author_avatar || '🐰')}</span>
+                <span class="text-xs font-medium text-gray-600">${escapeHtml(d.author_name || '小兔')}</span>
+                ${d.anonymous ? '<span class="text-[10px] text-gray-300">· 匿名</span>' : ''}
+            </button>
+            <div class="flex items-center gap-2">
+                <span class="text-2xl select-none">${d.mood || '📝'}</span>
+                <span class="text-[10px] text-white px-2 py-0.5 rounded-full" style="background:${moodInfo.border}">${moodInfo.label}</span>
+            </div>
+        </div>
+        ${imgHtml}
+        <p class="text-[14px] text-gray-600 leading-relaxed mb-3 line-clamp-3">${escapeHtml(d.content || '')}</p>
+        ${tagHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${tagHtml}</div>` : ''}
+        <div class="flex items-center justify-between text-xs text-gray-400">
+            <time>${formatDate(d.created_at)}</time>
+            <div class="flex items-center gap-3">
+                ${opts.onLike ? `<button class="disc-like-btn inline-flex items-center gap-1 ${liked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-400 active:scale-95 transition-all select-none" data-diary-id="${d.id}">
+                    <i data-lucide="heart" class="w-3.5 h-3.5 ${liked ? 'fill-pink-400' : ''}"></i>
+                    <span class="disc-like-count">${d.like_count || 0}</span>
+                </button>` : `<span class="inline-flex items-center gap-1 text-gray-400"><i data-lucide="heart" class="w-3.5 h-3.5"></i> ${d.like_count || 0}</span>`}
+                <span class="inline-flex items-center gap-1"><i data-lucide="message-circle" class="w-3.5 h-3.5"></i> ${d.comment_count || 0}</span>
+            </div>
+        </div>`;
+
+    // 点击卡片 → 打开详情
+    card.addEventListener('click', (e) => {
+        if (e.target.closest('.disc-like-btn') || e.target.closest('.disc-author-btn') || e.target.closest('button')) return;
+        if (opts.onDetail) opts.onDetail(d.id);
+    });
+
+    // 点击作者
+    const authorBtn = card.querySelector('.disc-author-btn');
+    if (authorBtn) authorBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (opts.onAuthor) opts.onAuthor(d.user_id || 1);
+    });
+
+    // 点击点赞
+    if (opts.onLike) {
+        const likeBtn = card.querySelector('.disc-like-btn');
+        if (likeBtn) likeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            opts.onLike(d.id);
+        });
+    }
+
+    return card;
+}
+
+/**
  * 生成日记卡片内部 HTML（不含外层 article 标签）
  * 用于已解锁胶囊和普通日记的内容区域
  */
@@ -138,3 +219,6 @@ function renderMoodStats(diaries) {
     content.innerHTML = html;
     bar.classList.remove('hidden');
 }
+
+// 暴露工厂函数供其他模块使用
+window.createPublicDiaryCard = createPublicDiaryCard;

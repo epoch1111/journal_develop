@@ -23,6 +23,7 @@ class TreeHoleDiary(BaseModel):
     content: str
     hug_count: int
     is_hugged: bool = False
+    image_urls: list[str] = []
 
 
 class HugResponse(BaseModel):
@@ -129,7 +130,8 @@ class StartConversationRequest(BaseModel):
 
 class SendMessageRequest(BaseModel):
     """发送私信请求"""
-    content: str
+    content: str = ''
+    image_url: str = ''
 
 
 class BlockUserRequest(BaseModel):

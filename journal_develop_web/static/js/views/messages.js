@@ -10,6 +10,14 @@
     let chatMsgPage = 1;
     let notificationPage = 1;
     let notificationPageSize = 20;
+    let chatImageUrls = [];  // 待发送的图片
+
+    // DOM 元素引用
+    const btnChatImage = document.getElementById('btnChatImage');
+    const chatImageInput = document.getElementById('chatImageInput');
+    const chatImageThumbnails = document.getElementById('chatImageThumbnails');
+    const btnChatEmoji = document.getElementById('btnChatEmoji');
+    const chatEmojiPicker = document.getElementById('chatEmojiPicker');
 
     // === Functions ===
 
@@ -135,6 +143,8 @@
         window.chatMsgPage = 1;
         chatMessages.innerHTML = '<p class="text-xs text-gray-300 text-center py-10">加载中...</p>';
         chatInput.value = '';
+        chatImageUrls = [];
+        renderChatThumbnails();
         await window.loadChatMessages();
         lucide.createIcons();
         requestAnimationFrame(() => {
@@ -188,9 +198,13 @@
                 ? 'bg-emerald-100 text-gray-700 ml-auto rounded-br-md'
                 : 'bg-white border border-gray-100 text-gray-700 mr-auto rounded-bl-md';
             const alignClass = isMine ? 'justify-end' : 'justify-start';
+            const imageHtml = m.image_url
+                ? `<img src="${escapeHtml(m.image_url)}" class="gallery-img rounded-xl w-28 h-28 object-cover cursor-pointer hover:opacity-90 transition-opacity mt-1.5" data-gallery="${btoa(encodeURIComponent(JSON.stringify([m.image_url])))}" data-idx="0" alt="">`
+                : '';
             return `<div class="flex ${alignClass}">
                 <div class="max-w-[75%] px-4 py-2.5 rounded-2xl ${bubbleClass} shadow-sm">
-                    <p class="text-sm leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(m.content || '')}</p>
+                    ${imageHtml}
+                    ${m.content ? `<p class="text-sm leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(m.content)}</p>` : ''}
                     <span class="text-[10px] text-gray-400 mt-1 block text-right">${formatDate(m.created_at)}</span>
                 </div>
             </div>`;
@@ -479,11 +493,15 @@
     document.getElementById('btnChatSend').addEventListener('click', async () => {
         const chatInput = document.getElementById('chatInput');
         const content = chatInput.value.trim();
-        if (!content || !window.currentConvId) return;
+        if ((!content && chatImageUrls.length === 0) || !window.currentConvId) return;
         document.getElementById('btnChatSend').disabled = true;
         try {
-            await EchoAPI.sendMessage(window.currentConvId, { content });
+            const payload = { content };
+            if (chatImageUrls.length > 0) payload.image_url = chatImageUrls[0];
+            await EchoAPI.sendMessage(window.currentConvId, payload);
             chatInput.value = '';
+            chatImageUrls = [];
+            renderChatThumbnails();
             await window.loadChatMessages();
         } catch (e) {
             if (e.message && e.message.includes('403')) {
@@ -499,6 +517,108 @@
     document.getElementById('chatInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') document.getElementById('btnChatSend').click();
     });
+
+    // 聊天图片上传
+    function renderChatThumbnails() {
+        if (chatImageThumbnails) {
+            chatImageThumbnails.innerHTML = chatImageUrls.map((url, i) => `
+                <div class="relative shrink-0">
+                    <img src="${escapeHtml(url)}" class="h-14 w-14 rounded-xl object-cover border border-gray-100">
+                    <button class="chat-img-remove absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700/80 text-white text-[8px] flex items-center justify-center hover:bg-gray-800 active:scale-95 transition-all" data-index="${i}">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `).join('');
+            if (chatImageUrls.length > 0) {
+                chatImageThumbnails.classList.remove('hidden');
+                chatImageThumbnails.classList.add('flex', 'flex-wrap', 'gap-2');
+            } else {
+                chatImageThumbnails.classList.add('hidden');
+                chatImageThumbnails.classList.remove('flex', 'flex-wrap', 'gap-2');
+            }
+            if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+        }
+    }
+
+    btnChatImage && btnChatImage.addEventListener('click', () => chatImageInput && chatImageInput.click());
+    chatImageInput && chatImageInput.addEventListener('change', async () => {
+        const files = Array.from(chatImageInput.files);
+        if (!files.length) return;
+        btnChatImage.disabled = true;
+        btnChatImage.classList.add('opacity-50');
+        try {
+            for (const file of files) {
+                const blob = await compressImage(file);
+                const data = await EchoAPI.uploadImage(blob);
+                chatImageUrls.push(data.url);
+            }
+            renderChatThumbnails();
+        } catch (e) {
+            console.error('图片上传失败:', e);
+            showToast('图片上传失败');
+        } finally {
+            btnChatImage.disabled = false;
+            btnChatImage.classList.remove('opacity-50');
+            chatImageInput.value = '';
+        }
+    });
+
+    chatImageThumbnails && chatImageThumbnails.addEventListener('click', (e) => {
+        const btn = e.target.closest('.chat-img-remove');
+        if (btn) {
+            chatImageUrls.splice(parseInt(btn.dataset.index), 1);
+            renderChatThumbnails();
+        }
+    });
+
+    // 点击空白处关闭表情面板（统一处理）
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.emoji-picker-panel').forEach(panel => {
+            if (!panel.classList.contains('hidden')) {
+                const btnId = panel.dataset.emojiBtn;
+                if (!e.target.closest(`[data-emoji-picker="${panel.id}"]`) && !e.target.closest(`#${btnId}`)) {
+                    panel.classList.add('hidden');
+                }
+            }
+        });
+    });
+
+    // ===== 可复用表情选择器初始化 =====
+    window.initEmojiPicker = function(btnId, inputId, pickerId) {
+        const btn = document.getElementById(btnId);
+        const picker = document.getElementById(pickerId);
+        if (!btn || !picker) return;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.emoji-picker-panel:not(#' + pickerId + ')').forEach(p => p.classList.add('hidden'));
+            picker.classList.toggle('hidden');
+        });
+        picker.addEventListener('click', (e) => {
+            const emojiBtn = e.target.closest('.chat-emoji-btn');
+            if (!emojiBtn) return;
+            e.stopPropagation();
+            const emoji = emojiBtn.textContent;
+            const input = document.getElementById(inputId);
+            if (input) {
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                const val = input.value;
+                input.value = val.slice(0, start) + emoji + val.slice(end);
+                input.selectionStart = input.selectionEnd = start + emoji.length;
+                input.focus();
+            }
+            picker.classList.add('hidden');
+        });
+    };
+
+    // 复用表情选择器：发现页评论
+    window.initEmojiPicker('btnDiscCommentEmoji', 'discCommentInput', 'discCommentEmojiPicker');
+    // 复用表情选择器：树洞卡片回复
+    window.initEmojiPicker('btnTreeholeReplyEmoji', 'treeholeReplyInput', 'treeholeReplyEmojiPicker');
+    // 复用表情选择器：树洞详情回复
+    window.initEmojiPicker('btnThDetailReplyEmoji', 'thDetailReplyInput', 'thDetailReplyEmojiPicker');
+    // 复用表情选择器：聊天私信
+    window.initEmojiPicker('btnChatEmoji', 'chatInput', 'chatEmojiPicker');
 
     document.getElementById('btnCloseContactsModal').addEventListener('click', window.closeContactsModal);
     document.getElementById('contactsModalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('contactsModalOverlay')) window.closeContactsModal(); });

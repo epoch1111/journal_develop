@@ -231,10 +231,16 @@ def init_db():
             sender_id       INTEGER NOT NULL,
             receiver_id     INTEGER NOT NULL,
             content         TEXT    NOT NULL,
+            image_url       TEXT    DEFAULT '',
             is_read         INTEGER NOT NULL DEFAULT 0,
             created_at      TEXT    NOT NULL
         )
     """)
+    # 迁移：给已存在的表加 image_url 字段
+    try:
+        conn.execute("ALTER TABLE private_messages ADD COLUMN image_url TEXT DEFAULT ''")
+    except Exception:
+        pass
 
     # 拉黑表
     conn.execute("""
@@ -1665,13 +1671,13 @@ def list_user_conversations(user_id: int) -> list[dict]:
     return result
 
 
-def create_private_message(conversation_id: int, sender_id: int, receiver_id: int, content: str) -> int | None:
+def create_private_message(conversation_id: int, sender_id: int, receiver_id: int, content: str, image_url: str = '') -> int | None:
     """创建私信消息，返回消息 id"""
     conn = get_connection()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor = conn.execute(
-        "INSERT INTO private_messages (conversation_id, sender_id, receiver_id, content, created_at) VALUES (?, ?, ?, ?, ?)",
-        (conversation_id, sender_id, receiver_id, content, created_at),
+        "INSERT INTO private_messages (conversation_id, sender_id, receiver_id, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (conversation_id, sender_id, receiver_id, content, image_url, created_at),
     )
     conn.commit()
     mid = cursor.lastrowid

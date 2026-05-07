@@ -485,3 +485,33 @@ window.Debug = {
 | `detailContent is undefined` | JS 文件中使用了 `index.html` 变量，但该变量未在 JS 文件中声明 | 删除 JS 文件中的重复函数，让 `index.html` 版本运行 |
 | `btnEditPickImage is not defined` | DOM 元素在 JS 文件中被引用，但 JS 文件未声明该变量 | 检查 `index.html` 中的变量声明，确保 JS 文件中有对应声明 |
 | 函数执行一半报错，后续代码不生效 | JS 文件中的函数覆盖了 `index.html` 中版本，但内部引用了未声明变量 | 删除 JS 文件中的重复函数 |
+
+## 按钮点击事件调试流程
+
+当 `addEventListener` 注册了但点击不触发时，按以下顺序排查：
+
+```
+1. getEventListeners(el)              // 确认监听器已注册
+2. el.onclick                         // 检查是否有 HTML onclick 覆盖
+3. el.getBoundingClientRect()          // 元素是否在可视区、尺寸正常
+4. 沿父链查 pointer-events:           // while(el){console.log(el.id,getComputedStyle(el).pointerEvents);el=el.parentElement}
+5. dispatchEvent(new MouseEvent(...)) // 手动触发，看报错定位具体行
+6. getEventListeners(el).click[0].listener.toString()  // 直接读 handler 源码
+```
+
+### 常见根因
+
+| 症状 | 原因 |
+|---|---|
+| 按钮变灰不可点 | `disabled` 属性，或 CSS `opacity:0.3` + `pointer-events:none` |
+| `addEventListener` 注册成功但鼠标不触发 | 祖先元素有 `pointer-events:none`，或被透明覆盖层挡住 |
+| `capture` 阶段报错 `e.target.closest is not a function` | capture 阶段 `e.target` 可能不是 DOM 元素，`closest()` 前需判断类型 |
+| Lucide 图标替换后事件失效 | 不要在按钮内的 `<i>` 标签上直接绑定，用父元素事件代理 `e.target.closest('#id')` |
+| `onclick()` 有效但鼠标点击不行 | 可能有其他元素接收了事件，或 `stopPropagation()` 被调用 |
+| JS 文件更新不生效 | 浏览器缓存，修改 HTML 中 `<script src="...?v=时间戳">` 版本号 |
+
+### Lucide 图标注意事项
+
+`lucide.createIcons()` 会把 `<i data-lucide="xxx">` 替换为 `<svg>` 并移动到父元素内。如果按钮用 `<i>` 绑定事件会被替换掉。**正确做法**：
+- 在父级元素（按钮或更上层）上用 `addEventListener` 并通过 `e.target.closest('#btnId')` 判断
+- 事件代理：`parent.addEventListener('click', e => { if(e.target.closest('#targetId')) handler() })`

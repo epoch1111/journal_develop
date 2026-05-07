@@ -96,27 +96,28 @@ def _get_conversation_for_user(conversation_id: int, user_id: int) -> dict:
     return conv
 
 
-def send_message(current_user_id: int, conversation_id: int, content: str) -> dict:
+def send_message(current_user_id: int, conversation_id: int, content: str, image_url: str = '') -> dict:
     conv = _get_conversation_for_user(conversation_id, current_user_id)
     receiver_id = _get_other_user_id(conv, current_user_id)
     from services.safety_service import check_block_or_raise
     check_block_or_raise(current_user_id, receiver_id)
     content = (content or "").strip()
-    if not content:
-        raise HTTPException(status_code=400, detail="消息内容不能为空")
+    if not content and not image_url:
+        raise HTTPException(status_code=400, detail="消息内容或图片不能为空")
     if len(content) > MAX_CONTENT_LENGTH:
         raise HTTPException(
             status_code=400,
             detail=f"消息内容过长，最多 {MAX_CONTENT_LENGTH} 字",
         )
 
-    mid = db_create_msg(conversation_id, current_user_id, receiver_id, content)
+    mid = db_create_msg(conversation_id, current_user_id, receiver_id, content, image_url)
     if mid is None:
         raise HTTPException(status_code=500, detail="发送失败")
 
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    db_update_last(conversation_id, content, now)
+    preview = image_url if not content else content
+    db_update_last(conversation_id, preview, now)
 
     message_obj = {
         "id": mid,
@@ -124,6 +125,7 @@ def send_message(current_user_id: int, conversation_id: int, content: str) -> di
         "sender_id": current_user_id,
         "receiver_id": receiver_id,
         "content": content,
+        "image_url": image_url,
         "is_read": False,
         "created_at": now,
     }

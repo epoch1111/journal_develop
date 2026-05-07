@@ -42,7 +42,7 @@ async def api_list_messages(
 @router.post("/conversations/{conversation_id}/messages")
 async def api_send_message(conversation_id: int, body: SendMessageRequest, user=Depends(require_user)):
     """发送消息"""
-    return send_message(user["id"], conversation_id, body.content)
+    return send_message(user["id"], conversation_id, body.content, body.image_url or '')
 
 
 @router.post("/conversations/{conversation_id}/read")
