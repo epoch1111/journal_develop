@@ -25,7 +25,7 @@
 
 | 模块 | 功能 | 鉴权 |
 |------|------|------|
-| 认证 | 注册 / 登录 / JWT Token / 随机头像 | 无 |
+| 认证 | 注册 / 登录 / JWT Token / 随机头像 / 修改密码 | 无 |
 | 日记 CRUD | 创建 / 编辑 / 删除 / 按日期查看 / 日历下钻 / 关键词搜索 | Bearer |
 | AI 分析 | Mock AI 情绪分析 + 治愈语 + 标签提取 (支持 default/cheerful 人格) | 无 |
 | 图片上传 | 多图上传 + 画廊展示 (1/2/3 列自适应) | Bearer |
@@ -38,7 +38,7 @@
 | 通知中心 | 实时通知 + 已读/未读 + 批量操作 | Bearer |
 | 打招呼 | 发起/同意/拒绝/取消 + 状态查询 | Bearer |
 | 私信 | 会话列表 + 发送消息 + 历史记录 + 已读标记 | Bearer |
-| 安全中心 | 拉黑/解除拉黑 + 举报(用户/日记/评论/树洞) | Bearer |
+| 安全中心 | 拉黑/解除拉黑 + 举报(用户/日记/评论/树洞) + 拉黑双向拦截 | Bearer |
 
 ### 底部导航结构
 
@@ -105,12 +105,15 @@ pip install bcrypt==4.0.1
 
 | 功能 | 说明 |
 |------|------|
+| 🔗 远程连接 | 登录弹窗/设置弹窗/"我的" Tab 均可输入自定义服务器地址，支持 ngrok 远程调试 |
+| 🔐 修改密码 | 设置弹窗中可修改当前密码 |
+| 🚫 拉黑双向拦截 | 双向拉黑后日记/树洞不可见、内容被屏蔽、无法点赞/评论/回复、通知不推送 |
 | 🔍 日记搜索 | 在日记时间线搜索正文/标签/心情词/AI字段，严格隐私隔离 |
 | 🏷️ 作者标签 | 公开日记评论和树洞回复中，原作者发言旁显示"作者"徽章 |
 | 🎲 随机头像 | 新用户注册从 18 个 emoji 头像池中随机分配 |
 | 😐 平静心情 | 新增"平静"心情选项，适配心情无波动的日常状态 |
 | 🔗 日历下钻 | 统计看板日历格子可点击，查看当天所有日记 |
-| 🔗 评论跳转 | 发现广场评论头像和名字可点击，跳转到评论人主页 |
+| 🔗 全局头像跳转 | 任意位置的头像/名字点击均可跳转到作者主页 |
 
 ## 项目结构
 
@@ -121,6 +124,7 @@ pip install bcrypt==4.0.1
 ├── requirements.txt           # Python 依赖
 ├── start.bat                  # Windows 一键启动
 ├── start.sh                   # macOS/Linux 一键启动
+├── start_ngrok.bat           # ngrok 远程调试启动
 ├── tests/
 │   └── test_all.py            # 全量回归测试脚本
 ├── echo.db                    # SQLite 数据库 (运行时生成)
@@ -153,8 +157,19 @@ pip install bcrypt==4.0.1
 │   └── seed_demo.py           # 演示数据生成
 ├── static/js/
 │   ├── utils.js               # 工具函数
-│   ├── api.js                 # API 通信层 (58 个方法)
-│   └── components.js          # 组件渲染
+│   ├── api.js                 # API 通信层 (60+ 个方法)
+│   ├── components.js          # 组件渲染
+│   ├── realtime.js            # WebSocket 实时推送
+│   ├── debug.js               # 调试工具
+│   └── views/                 # 按视图拆分的 JS 模块
+│       ├── timeline.js        # 日记时间线
+│       ├── discover.js        # 发现广场
+│       ├── treehole.js       # 树洞
+│       ├── profile.js        # 个人主页 + 安全中心
+│       ├── messages.js        # 消息/通知/打招呼
+│       ├── compose.js         # 写日记
+│       ├── diary.js          # 日记详情
+│       └── modals.js         # 弹窗 (登录/设置/举报等)
 ├── templates/
 │   └── index.html             # 单页面应用
 ├── docs/
@@ -251,8 +266,10 @@ pip install bcrypt==4.0.1
 ### JS 模块
 
 - `static/js/utils.js` — 纯函数 (formatDate, escapeHtml, compressImage 等)
-- `static/js/api.js` — `window.EchoAPI` (58 个方法，自动 Token 管理)
+- `static/js/api.js` — `window.EchoAPI` (60+ 个方法，自动 Token 管理，支持自定义服务器 URL)
 - `static/js/components.js` — 组件渲染 (createDiaryCard, renderMoodStats 等)
+- `static/js/realtime.js` — WebSocket 实时推送管理
+- `static/js/views/` — 按视图拆分的模块 (timeline / discover / treehole / profile / messages / compose / diary / modals)
 
 ## 安全设计
 
@@ -260,7 +277,7 @@ pip install bcrypt==4.0.1
 - **认证**: JWT Bearer Token，7 天过期
 - **日记隔离**: 所有日记查询按 `user_id` 过滤，他人无法查看私密日记
 - **胶囊遮罩**: `_mask_capsule()` 在读取层拦截未到期胶囊内容
-- **拉黑**: 双向检查 `is_blocked_between()`，拉黑后自动取消关注、禁止互动
+- **拉黑**: 双向检查 `get_block_direction()`，拉黑后自动取消关注、禁止互动；日记/树洞对拉黑双方不可见，内容屏蔽，通知不推送
 - **举报**: 支持举报用户/日记/评论/树洞，reason 白名单校验
 - **输入校验**: Pydantic 模型校验 + 评论 500 字限制
 - **XSS 防护**: 前端 `escapeHtml()` 转义用户内容
@@ -324,8 +341,9 @@ curl -X POST http://localhost:8000/api/dev/seed-demo
 8. **消息中心** — 切换到消息 Tab，查看打招呼、私信、通知
 9. **打招呼** — 向其他用户发起打招呼，体验同意/拒绝流程
 10. **私信** — 在打招呼被接受后，发送私信
-11. **安全中心** — 在"我的"Tab 进入安全中心，体验拉黑/举报
-12. **统计看板** — 在"我的"Tab 切换到统计子视图
+11. **安全中心** — 在"我的"Tab 进入安全中心，体验拉黑/举报；拉黑后日记不可见
+12. **设置** — 点击右上角齿轮图标，体验修改密码、远程服务器连接
+13. **统计看板** — 在"我的"Tab 切换到统计子视图
 
 ## 项目截图
 
