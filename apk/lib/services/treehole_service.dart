@@ -1,53 +1,72 @@
 import '../models/diary.dart';
 import '../models/comment.dart';
-import 'api_client.dart';
+import '../api/endpoints/treehole.dart';
+
+class TreeholeWithReplies {
+  final Diary diary;
+  final List<Comment> replies;
+  TreeholeWithReplies({required this.diary, required this.replies});
+}
 
 class TreeholeService {
-  final ApiClient _client = ApiClient();
+  final TreeholeEndpoints _ep = TreeholeEndpoints();
 
   Future<Diary> createTreehole({
     required String mood,
     required String content,
+    List<String>? imageUrls,
   }) async {
-    final data = await _client.post('/api/treehole', body: {
-      'mood': mood,
-      'content': content,
-    });
-    return Diary.fromJson(data);
+    final data = await _ep.create(mood: mood, content: content, imageUrls: imageUrls);
+    return Diary.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<Diary> fetchRandomTreehole() async {
-    final data = await _client.get('/api/treehole/random', auth: false);
-    return Diary.fromJson(data);
+  Future<Diary?> fetchRandomTreehole() async {
+    final data = await _ep.getRandom();
+    if (data.isEmpty) return null;
+    return Diary.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<Diary> fetchTreeholeDetail(int id) async {
-    final data = await _client.get('/api/treehole/$id', auth: false);
-    return Diary.fromJson(data);
+  Future<TreeholeWithReplies> fetchTreeholeDetail(int id) async {
+    final data = await _ep.getDetail(id);
+    final diary = Diary.fromJson(Map<String, dynamic>.from(data));
+    final repliesList = (data['replies'] as List? ?? [])
+        .map((r) => Comment.fromJson(Map<String, dynamic>.from(r)))
+        .toList();
+    return TreeholeWithReplies(diary: diary, replies: repliesList);
   }
 
-  Future<void> hugTreehole(int id) async {
-    await _client.post('/api/treehole/$id/hug');
+  Future<Map<String, dynamic>> hugTreehole(int id) async {
+    return await _ep.hug(id);
   }
 
-  Future<void> unhugTreehole(int id) async {
-    await _client.delete('/api/treehole/$id/hug');
+  Future<Map<String, dynamic>> unhugTreehole(int id) async {
+    return await _ep.unhug(id);
   }
 
-  Future<Comment> replyToTreehole(int id, String content,
-      {int? parentReplyId, String? identityKey}) async {
-    final body = <String, dynamic>{'content': content};
-    if (parentReplyId != null) body['parent_reply_id'] = parentReplyId;
-    if (identityKey != null) body['identity_key'] = identityKey;
-    final data = await _client.post('/api/treehole/$id/reply', body: body);
-    return Comment.fromJson(data);
+  Future<Comment> replyToTreehole(
+    int diaryId,
+    String content, {
+    int? parentReplyId,
+    int? replyToIdentityId,
+    String? imageUrl,
+    List<String>? imageUrls,
+  }) async {
+    final data = await _ep.reply(
+      diaryId,
+      content,
+      parentReplyId: parentReplyId,
+      replyToIdentityId: replyToIdentityId,
+      imageUrl: imageUrl,
+      imageUrls: imageUrls,
+    );
+    return Comment.fromJson(Map<String, dynamic>.from(data['reply'] ?? data));
   }
 
-  Future<void> likeReply(int replyId) async {
-    await _client.post('/api/treehole/replies/$replyId/like');
+  Future<Map<String, dynamic>> likeReply(int replyId) async {
+    return await _ep.likeReply(replyId);
   }
 
-  Future<void> unlikeReply(int replyId) async {
-    await _client.delete('/api/treehole/replies/$replyId/like');
+  Future<Map<String, dynamic>> unlikeReply(int replyId) async {
+    return await _ep.unlikeReply(replyId);
   }
 }

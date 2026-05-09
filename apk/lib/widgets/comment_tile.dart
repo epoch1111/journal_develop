@@ -9,7 +9,7 @@ class CommentTile extends StatelessWidget {
   final bool isChild;
   final VoidCallback? onAvatarTap;
   final void Function(Comment)? onReplyTap;
-  final VoidCallback? onLikeTap;
+  final void Function(Comment)? onLikeTap;
   final VoidCallback? onReportTap;
 
   const CommentTile({
@@ -107,32 +107,6 @@ class CommentTile extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 10,
                                   color: AppTheme.textSecondary)),
-                          if (onLikeTap != null) ...[
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: onLikeTap,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    comment.liked == true
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    size: 12,
-                                    color: comment.liked == true
-                                        ? AppTheme.danger
-                                        : AppTheme.textSecondary,
-                                  ),
-                                  if (comment.likeCount != null &&
-                                      comment.likeCount! > 0)
-                                    Text(' ${comment.likeCount}',
-                                        style: const TextStyle(
-                                            fontSize: 10,
-                                            color: AppTheme.textSecondary)),
-                                ],
-                              ),
-                            ),
-                          ],
                           if (onReplyTap != null) ...[
                             const SizedBox(width: 12),
                             GestureDetector(
@@ -155,6 +129,33 @@ class CommentTile extends StatelessWidget {
                                       color: AppTheme.textMuted)),
                             ),
                           ],
+                          if (onLikeTap != null) ...[
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: onLikeTap != null ? () => onLikeTap!(comment) : null,
+                              behavior: HitTestBehavior.opaque,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    comment.liked == true
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    size: 12,
+                                    color: comment.liked == true
+                                        ? AppTheme.danger
+                                        : AppTheme.textSecondary,
+                                  ),
+                                  if (comment.likeCount != null &&
+                                      comment.likeCount! > 0)
+                                    Text(' ${comment.likeCount}',
+                                        style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppTheme.textSecondary)),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -172,7 +173,7 @@ class CommentTile extends StatelessWidget {
                                 isChild: true,
                                 onAvatarTap: onAvatarTap,
                                 onReplyTap: onReplyTap,
-                                onLikeTap: onLikeTap,
+                                onLikeTap: onLikeTap != null ? (c) => onLikeTap!(c) : null,
                                 onReportTap: onReportTap,
                               ))
                           .toList(),

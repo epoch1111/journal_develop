@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/discover_service.dart';
 import '../../services/diary_service.dart';
 import '../../widgets/comment_tile.dart';
+import '../../widgets/user_avatar.dart';
 import '../../widgets/loading_indicator.dart';
 import 'discover_screen.dart';
 
@@ -33,11 +34,15 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   int? _replyingTo;
   int? _replyingToUserId;
   String? _replyingToName;
+  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    if (!_loaded) {
+      _loaded = true;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -71,6 +76,17 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     }
   }
 
+  int _countAllComments(List<Comment> comments) {
+    int count = 0;
+    for (final c in comments) {
+      count++;
+      if (c.replies != null) {
+        count += _countAllComments(c.replies!);
+      }
+    }
+    return count;
+  }
+
   Future<void> _sendComment() async {
     final content = _replyCtrl.text.trim();
     if (content.isEmpty) return;
@@ -78,7 +94,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     final clientId = 'user:${auth.user?.id ?? '0'}';
     try {
       await DiscoverService().commentOnDiary(widget.diaryId, clientId, content,
-          parentReplyId: _replyingTo, replyToUserId: _replyingToUserId);
+          parentCommentId: _replyingTo, replyToUserId: _replyingToUserId);
       _replyCtrl.clear();
       setState(() {
         _replyingTo = null;
@@ -96,8 +112,8 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   }
 
   Future<void> _toggleCommentLike(Comment comment) async {
+    print('LIKE: commentId=${comment.id} liked=${comment.liked} authorName=${comment.authorName}');
     try {
-      print('LIKE: commentId=${comment.id} liked=${comment.liked}');
       if (comment.liked == true) {
         final result = await DiscoverService().unlikeComment(comment.id);
         print('UNLIKE result: $result');
@@ -116,32 +132,179 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     }
   }
 
-  void _showReportDialog(Comment comment) {
+  Widget _buildActionBtn(IconData icon, String label, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 13, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleLike() async {
+    final diary = _diary;
+    if (diary == null) return;
+    final auth = ref.read(authProvider);
+    final clientId = 'user:${auth.user?.id ?? '0'}';
+    try {
+      if (diary.liked == true) {
+        await DiscoverService().unlikeDiary(diary.id, clientId);
+      } else {
+        await DiscoverService().likeDiary(diary.id, clientId);
+      }
+      _load();
+    } catch (e) {
+      print('LIKE ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('操作失败: $e')));
+      }
+    }
+  }
+
+  void _showReportDiaryDialog(Diary diary) {
     final reasons = ['骚扰', '垃圾信息', '色情内容', '暴力内容', '侵犯隐私', '诈骗', '其他'];
+    String? selectedReason;
+    final descCtrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('举报评论'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: reasons.map((r) => ListTile(
-            title: Text(r),
-            onTap: () async {
-              Navigator.pop(ctx);
-              try {
-                await DiscoverService().reportComment(comment.id, r);
-                if (mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('举报成功')));
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('举报失败: $e')));
-                }
-              }
-            },
-          )).toList(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInnerState) => AlertDialog(
+          title: const Text('举报日记'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('举报原因', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: reasons.map((r) => GestureDetector(
+                    onTap: () => setInnerState(() => selectedReason = r),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selectedReason == r ? AppTheme.dangerLight : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(r, style: TextStyle(fontSize: 13, color: selectedReason == r ? AppTheme.danger : AppTheme.textSecondary)),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('补充说明（必填）', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(hintText: '请描述具体情况...', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            ElevatedButton(
+              onPressed: selectedReason != null && descCtrl.text.trim().isNotEmpty
+                  ? () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await DiscoverService().reportDiary(diary.id, selectedReason!, description: descCtrl.text.trim());
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('举报成功')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('举报失败: $e')),
+                          );
+                        }
+                      }
+                    }
+                  : null,
+              child: const Text('提交'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportDialog(Comment comment) {
+    final reasons = ['骚扰', '垃圾信息', '色情内容', '暴力内容', '侵犯隐私', '诈骗', '其他'];
+    String? selectedReason;
+    final descCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInnerState) => AlertDialog(
+          title: const Text('举报评论'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('举报原因', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: reasons.map((r) => GestureDetector(
+                    onTap: () => setInnerState(() => selectedReason = r),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selectedReason == r ? AppTheme.dangerLight : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(r, style: TextStyle(fontSize: 13, color: selectedReason == r ? AppTheme.danger : AppTheme.textSecondary)),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('补充说明（必填）', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(hintText: '请描述具体情况...', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            ElevatedButton(
+              onPressed: selectedReason != null && descCtrl.text.trim().isNotEmpty
+                  ? () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await DiscoverService().reportComment(comment.id, selectedReason!, description: descCtrl.text.trim());
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('举报成功')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('举报失败: $e')),
+                          );
+                        }
+                      }
+                    }
+                  : null,
+              child: const Text('提交'),
+            ),
+          ],
         ),
       ),
     );
@@ -177,7 +340,14 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('${diary.mood} 日记详情'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(diary.mood, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            const Text('日记详情', style: TextStyle(fontSize: 17)),
+          ],
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: AppTheme.textPrimary,
@@ -196,25 +366,35 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (diary.authorName != null)
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) =>
-                                    UserProfileScreen(userId: diary.userId),
-                              ));
-                            },
-                            child: Row(
-                              children: [
-                                Text(diary.authorAvatar ?? '🐰',
-                                    style: const TextStyle(fontSize: 24)),
-                                const SizedBox(width: 8),
-                                Text(diary.authorName!,
+                          Row(
+                            children: [
+                              UserAvatar(
+                                avatar: diary.authorAvatar ?? '🐰',
+                                size: 28,
+                                onTap: () {
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) =>
+                                        UserProfileScreen(userId: diary.userId),
+                                  ));
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) =>
+                                        UserProfileScreen(userId: diary.userId),
+                                  ));
+                                },
+                                child: Text(diary.authorName!,
                                     style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                         color: AppTheme.textPrimary)),
-                              ],
-                            ),
+                              ),
+                              const Spacer(),
+                              Text(diary.mood, style: const TextStyle(fontSize: 28)),
+                            ],
                           ),
                         const SizedBox(height: 16),
                         Text(diary.content,
@@ -247,13 +427,54 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                   ),
                   // Divider
                   Container(height: 8, color: AppTheme.bg),
+                  // Action bar: like + comment count + report
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    child: Row(
+                      children: [
+                        _buildActionBtn(
+                          diary.liked == true ? Icons.favorite : Icons.favorite_border,
+                          '${diary.likeCount ?? 0}',
+                          diary.liked == true ? AppTheme.danger : AppTheme.textMuted,
+                          _toggleLike,
+                        ),
+                        const SizedBox(width: 20),
+                        Row(
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 16, color: AppTheme.textMuted),
+                            const SizedBox(width: 4),
+                            Text('${_comments.length} 条评论',
+                                style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+                          ],
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _showReportDiaryDialog(diary),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.flag_outlined, size: 14, color: AppTheme.textMuted),
+                                SizedBox(width: 4),
+                                Text('举报', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   // Comments section
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('评论 (${_comments.length})',
+                        Text('评论 (${_countAllComments(_comments)})',
                             style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -286,7 +507,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                                   });
                                   _replyCtrl.clear();
                                 },
-                                onLikeTap: () => _toggleCommentLike(c),
+                                onLikeTap: (comment) => _toggleCommentLike(comment),
                                 onReportTap: () => _showReportDialog(c),
                               )),
                       ],

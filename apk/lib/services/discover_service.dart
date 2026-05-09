@@ -1,10 +1,10 @@
 import '../models/diary.dart';
+import '../models/user.dart';
 import '../models/comment.dart';
-import 'api_client.dart'
-    show ApiClient, ApiException, AuthException;
+import '../api/endpoints/discover.dart';
 
 class DiscoverService {
-  final ApiClient _client = ApiClient();
+  final DiscoverEndpoints _ep = DiscoverEndpoints();
 
   Future<Map<String, dynamic>> fetchPublicDiaries({
     int page = 1,
@@ -12,112 +12,84 @@ class DiscoverService {
     String? tag,
     String? keyword,
     String? clientId,
-    String? feed,
   }) async {
-    // Following feed uses a different endpoint
-    if (feed == 'following') {
-      final data = await _client.get('/api/me/following-feed',
-          queryParams: {'page': page.toString()});
-      final list = data['items'] as List? ?? [];
-      return {
-        'diaries': list.map((d) => Diary.fromJson(d)).toList(),
-        'has_more': data['has_more'] ?? false,
-      };
-    }
-
-    final params = <String, String>{'page': page.toString()};
-    if (mood != null && mood.isNotEmpty) params['mood'] = mood;
-    if (tag != null && tag.isNotEmpty) params['tag'] = tag;
-    if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
-    if (clientId != null && clientId.isNotEmpty) params['client_id'] = clientId;
-
-    // 发现页是公开接口，直接用 auth:false
-    print('DISCOVER URL: ${_client.baseUrl}/api/public/diaries params=$params');
-    final raw = await _client.get(
-      '/api/public/diaries',
-      auth: false,
-      queryParams: params,
+    final data = await _ep.getPublicDiaries(
+      page: page,
+      mood: mood,
+      tag: tag,
+      keyword: keyword,
+      clientId: clientId,
     );
-    print('DISCOVER raw: $raw');
-
-    // raw 必须是 {'items': [...], 'has_more': ...} 格式
-    List<dynamic> items;
-    if (raw is Map && raw.containsKey('items') && raw['items'] is List) {
-      items = raw['items'] as List;
-    } else if (raw is Map && raw.containsKey('data') && raw['data'] is List) {
-      items = raw['data'] as List;
-    } else {
-      print('DISCOVER unexpected: $raw');
-      items = [];
-    }
-
+    final items = data['items'] as List? ?? data['data'] as List? ?? [];
     return {
       'diaries': items.map((d) => Diary.fromJson(Map<String, dynamic>.from(d))).toList(),
-      'has_more': (raw is Map) ? (raw['has_more'] ?? false) : false,
+      'has_more': data['has_more'] ?? false,
     };
   }
 
   Future<Diary> fetchPublicDiaryById(int id) async {
-    final data = await _client.get('/api/public/diaries/$id', auth: false);
+    final data = await _ep.getPublicDiaryById(id);
     return Diary.fromJson(Map<String, dynamic>.from(data));
   }
 
   Future<void> likeDiary(int diaryId, String clientId) async {
-    await _client.post('/api/public/diaries/$diaryId/like',
-        body: {'client_id': clientId});
+    await _ep.likeDiary(diaryId, clientId);
   }
 
   Future<void> unlikeDiary(int diaryId, String clientId) async {
-    await _client.delete(
-        '/api/public/diaries/$diaryId/like?client_id=$clientId');
+    await _ep.unlikeDiary(diaryId, clientId);
   }
 
-  Future<Comment> commentOnDiary(int diaryId, String clientId, String content,
-      {int? parentReplyId, int? replyToUserId}) async {
-    final body = <String, dynamic>{
-      'client_id': clientId,
-      'content': content,
-    };
-    if (parentReplyId != null) body['parent_comment_id'] = parentReplyId;
-    if (replyToUserId != null) body['reply_to_user_id'] = replyToUserId;
-    final data = await _client.post(
-        '/api/public/diaries/$diaryId/comments',
-        body: body,
-        auth: true);
-    return Comment.fromJson(data['comment']);
+  Future<Comment> commentOnDiary(
+    int diaryId,
+    String clientId,
+    String content, {
+    int? parentCommentId,
+    int? replyToUserId,
+    String? imageUrl,
+    List<String>? imageUrls,
+  }) async {
+    final data = await _ep.commentOnDiary(
+      diaryId, clientId, content,
+      parentCommentId: parentCommentId,
+      replyToUserId: replyToUserId,
+      imageUrl: imageUrl,
+      imageUrls: imageUrls,
+    );
+    return Comment.fromJson(Map<String, dynamic>.from(data['comment'] ?? data));
   }
 
   Future<List<Comment>> fetchComments(int diaryId) async {
-    final data = await _client.get(
-      '/api/public/diaries/$diaryId/comments',
-      auth: true,
-    );
-
-    // Backend returns list directly, not wrapped in {"data": [...]}
-    final list = data is List ? (data as List) : (data['data'] as List? ?? []);
-    return list
-        .map((c) => Comment.fromJson(Map<String, dynamic>.from(c)))
-        .toList();
+    final data = await _ep.getComments(diaryId);
+    final list = data['data'] as List? ?? [];
+    return list.map((c) => Comment.fromJson(Map<String, dynamic>.from(c))).toList();
   }
 
-  // 评论点赞
   Future<Map<String, dynamic>> likeComment(int commentId) async {
-    return await _client.post('/api/public/diaries/comments/$commentId/like', auth: true);
+    return await _ep.likeComment(commentId);
   }
 
-  // 取消评论点赞
   Future<Map<String, dynamic>> unlikeComment(int commentId) async {
-    return await _client.delete('/api/public/diaries/comments/$commentId/like', auth: true);
+    return await _ep.unlikeComment(commentId);
   }
 
-  // 举报评论
-  Future<void> reportComment(int commentId, String reason) async {
-    await _client.post('/api/reports',
-        body: {
-          'target_type': 'comment',
-          'target_id': commentId,
-          'reason': reason,
-        },
-        auth: true);
+  Future<void> reportDiary(int diaryId, String reason, {String? description}) async {
+    await _ep.reportDiary(diaryId, reason, description: description);
+  }
+
+  Future<void> reportComment(int commentId, String reason, {String? description}) async {
+    await _ep.reportComment(commentId, reason, description: description);
+  }
+
+  Future<List<Diary>> fetchFollowingFeed({int page = 1}) async {
+    final data = await _ep.getFollowingFeed(page: page);
+    final items = data['items'] as List? ?? data['data'] as List? ?? [];
+    return items.map((d) => Diary.fromJson(Map<String, dynamic>.from(d))).toList();
+  }
+
+  Future<List<User>> searchUsers(String keyword) async {
+    final data = await _ep.searchUsers(keyword);
+    final list = data['users'] as List? ?? [];
+    return list.map((u) => User.fromJson(Map<String, dynamic>.from(u))).toList();
   }
 }
