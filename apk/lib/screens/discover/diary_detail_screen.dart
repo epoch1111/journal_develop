@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../theme.dart';
 import '../../models/diary.dart';
 import '../../models/comment.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/discover_provider.dart';
 import '../../services/discover_service.dart';
 import '../../services/diary_service.dart';
+import '../../services/upload_service.dart';
 import '../../widgets/comment_tile.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/loading_indicator.dart';
+import '../../widgets/emoji_picker.dart';
 import 'discover_screen.dart';
 
 class DiaryDetailScreen extends ConsumerStatefulWidget {
@@ -26,43 +30,49 @@ class DiaryDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
-  Diary? _diary;
-  List<Comment> _comments = [];
+  Diary? _privateDiary;
   bool _loading = true;
   String? _error;
   final _replyCtrl = TextEditingController();
   int? _replyingTo;
   int? _replyingToUserId;
   String? _replyingToName;
-  bool _loaded = false;
+  final _imagePicker = ImagePicker();
+  final _uploadService = UploadService();
+  List<String> _commentImages = [];
 
   @override
   void initState() {
     super.initState();
-    if (!_loaded) {
-      _loaded = true;
-      _load();
-    }
+    _load();
   }
 
   Future<void> _load() async {
     setState(() => _error = null);
     try {
       Diary diary;
-      List<Comment> comments;
       if (widget.isPublic) {
-        diary = await DiscoverService().fetchPublicDiaryById(widget.diaryId);
-        comments = await DiscoverService().fetchComments(widget.diaryId);
+        await ref.read(discoverProvider.notifier).fetchDiaryDetail(widget.diaryId);
+        final state = ref.read(discoverProvider);
+        if (state.error != null) {
+          throw Exception(state.error);
+        }
+        if (state.selectedDiary == null) {
+          throw Exception('日记不存在或不是公开日记');
+        }
+        diary = state.selectedDiary!;
+        await ref.read(discoverProvider.notifier).subscribeDiary(widget.diaryId);
+        if (mounted) {
+          setState(() => _loading = false);
+        }
       } else {
         diary = await DiaryService().fetchDiaryById(widget.diaryId);
-        comments = [];
-      }
-      if (mounted) {
-        setState(() {
-          _diary = diary;
-          _comments = comments;
-          _loading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _privateDiary = diary;
+            _loading = false;
+          });
+        }
       }
     } catch (e, st) {
       if (mounted) {
@@ -89,17 +99,19 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
 
   Future<void> _sendComment() async {
     final content = _replyCtrl.text.trim();
-    if (content.isEmpty) return;
+    if (content.isEmpty && _commentImages.isEmpty) return;
     final auth = ref.read(authProvider);
     final clientId = 'user:${auth.user?.id ?? '0'}';
     try {
       await DiscoverService().commentOnDiary(widget.diaryId, clientId, content,
-          parentCommentId: _replyingTo, replyToUserId: _replyingToUserId);
+          parentCommentId: _replyingTo, replyToUserId: _replyingToUserId,
+          imageUrls: _commentImages.isNotEmpty ? _commentImages : null);
       _replyCtrl.clear();
       setState(() {
         _replyingTo = null;
         _replyingToUserId = null;
         _replyingToName = null;
+        _commentImages = [];
       });
       _load();
     } catch (e) {
@@ -111,24 +123,33 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
     }
   }
 
+  Future<void> _pickCommentImages() async {
+    final images = await _imagePicker.pickMultiImage(imageQuality: 80);
+    if (images.isEmpty) return;
+    final urls = <String>[];
+    for (final img in images) {
+      try {
+        final url = await _uploadService.uploadImage(img);
+        urls.add(url);
+      } catch (e) {
+        print('UPLOAD ERROR: $e');
+      }
+    }
+    if (urls.isNotEmpty && mounted) {
+      setState(() => _commentImages.addAll(urls));
+    }
+  }
+
+  void _removeCommentImage(int index) {
+    setState(() => _commentImages.removeAt(index));
+  }
+
   Future<void> _toggleCommentLike(Comment comment) async {
     print('LIKE: commentId=${comment.id} liked=${comment.liked} authorName=${comment.authorName}');
-    try {
-      if (comment.liked == true) {
-        final result = await DiscoverService().unlikeComment(comment.id);
-        print('UNLIKE result: $result');
-      } else {
-        final result = await DiscoverService().likeComment(comment.id);
-        print('LIKE result: $result');
-      }
-      _load();
-    } catch (e, st) {
-      print('LIKE ERROR: $e');
-      print('LIKE STACK: $st');
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('操作失败: $e')));
-      }
+    if (comment.liked == true) {
+      await ref.read(discoverProvider.notifier).unlikeComment(comment.id);
+    } else {
+      await ref.read(discoverProvider.notifier).likeComment(comment.id);
     }
   }
 
@@ -146,7 +167,9 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
   }
 
   Future<void> _toggleLike() async {
-    final diary = _diary;
+    final diary = widget.isPublic
+        ? ref.read(discoverProvider).selectedDiary
+        : _privateDiary;
     if (diary == null) return;
     final auth = ref.read(authProvider);
     final clientId = 'user:${auth.user?.id ?? '0'}';
@@ -312,6 +335,9 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
 
   @override
   void dispose() {
+    if (widget.isPublic) {
+      ref.read(discoverProvider.notifier).unsubscribeDiary();
+    }
     _replyCtrl.dispose();
     super.dispose();
   }
@@ -322,7 +348,10 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
       return const Scaffold(
           body: Center(child: LoadingIndicator(message: '加载中...')));
     }
-    if (_diary == null) {
+    final diary = widget.isPublic
+        ? ref.watch(discoverProvider).selectedDiary
+        : _privateDiary;
+    if (diary == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('日记')),
         body: Center(
@@ -334,7 +363,6 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
       );
     }
 
-    final diary = _diary!;
     final diaryOwnerId = diary.userId;
 
     return Scaffold(
@@ -443,7 +471,7 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                           children: [
                             Icon(Icons.chat_bubble_outline, size: 16, color: AppTheme.textMuted),
                             const SizedBox(width: 4),
-                            Text('${_comments.length} 条评论',
+                            Text('${(ref.watch(discoverProvider).comments ?? []).length} 条评论',
                                 style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
                           ],
                         ),
@@ -474,18 +502,18 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('评论 (${_countAllComments(_comments)})',
+                        Text('评论 (${_countAllComments(ref.watch(discoverProvider).comments ?? [])})',
                             style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: AppTheme.textPrimary)),
                         const SizedBox(height: 16),
-                        if (_comments.isEmpty)
+                        if ((ref.watch(discoverProvider).comments ?? []).isEmpty)
                           const Text('暂无评论',
                               style: TextStyle(
                                   fontSize: 13, color: AppTheme.textSecondary))
                         else
-                          ..._comments.map((c) => CommentTile(
+                          ...(ref.watch(discoverProvider).comments ?? []).map((c) => CommentTile(
                                 comment: c,
                                 isAuthor: c.isAuthor == true ||
                                     c.authorUserId == diaryOwnerId,
@@ -524,52 +552,113 @@ class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
               color: Colors.white,
               border: Border(top: BorderSide(color: Color(0xFFF3F4F6))),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _replyCtrl,
-                    maxLines: 3,
-                    minLines: 1,
-                    decoration: InputDecoration(
-                      hintText: _replyingTo != null
-                          ? '回复 $_replyingToName...'
-                          : '写评论...',
-                      hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                      filled: true,
-                      fillColor: AppTheme.bg,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      suffixIcon: _replyingTo != null
-                          ? IconButton(
-                              icon: const Icon(Icons.close, size: 16),
-                              onPressed: () {
-                                setState(() {
-                                  _replyingTo = null;
-                                  _replyingToUserId = null;
-                                  _replyingToName = null;
-                                });
-                                _replyCtrl.clear();
-                              },
-                            )
-                          : null,
+                // Image thumbnails
+                if (_commentImages.isNotEmpty)
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _commentImages.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (ctx, i) => Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                                _commentImages[i],
+                                height: 64, width: 64, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 64, height: 64,
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.broken_image, size: 20),
+                                )),
+                          ),
+                          Positioned(
+                            top: 0, right: 0,
+                            child: GestureDetector(
+                              onTap: () => _removeCommentImage(i),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                    color: Colors.black54, shape: BoxShape.circle),
+                                child: const Icon(Icons.close,
+                                    size: 10, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _sendComment,
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.accent,
-                      shape: BoxShape.circle,
+                if (_commentImages.isNotEmpty) const SizedBox(height: 6),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _pickCommentImages,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.image_outlined,
+                            size: 22, color: AppTheme.textMuted),
+                      ),
                     ),
-                    child: const Icon(Icons.send, color: Colors.white, size: 18),
-                  ),
+                    GestureDetector(
+                      onTap: () => showEmojiPicker(context, _replyCtrl,
+                          iconColor: AppTheme.accent, bgColor: AppTheme.accentLight),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.sentiment_satisfied_alt,
+                            size: 24, color: AppTheme.accent),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _replyCtrl,
+                        maxLines: 3,
+                        minLines: 1,
+                        decoration: InputDecoration(
+                          hintText: _replyingTo != null
+                              ? '回复 $_replyingToName...'
+                              : '写评论...',
+                          hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                          filled: true,
+                          fillColor: AppTheme.bg,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          suffixIcon: _replyingTo != null
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 16),
+                                  onPressed: () {
+                                    setState(() {
+                                      _replyingTo = null;
+                                      _replyingToUserId = null;
+                                      _replyingToName = null;
+                                    });
+                                    _replyCtrl.clear();
+                                  },
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: _sendComment,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

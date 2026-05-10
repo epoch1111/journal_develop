@@ -6,11 +6,12 @@ import '../../theme.dart';
 import '../../widgets/mood_selector.dart';
 import '../../providers/diary_provider.dart';
 import '../../services/upload_service.dart';
-import '../../services/api_client.dart';
+import '../../api/client.dart';
 
 class WriteDiaryScreen extends ConsumerStatefulWidget {
   final bool isCapsule;
-  const WriteDiaryScreen({super.key, this.isCapsule = false});
+  final bool isPrivateOnly;
+  const WriteDiaryScreen({super.key, this.isCapsule = false, this.isPrivateOnly = false});
 
   @override
   ConsumerState<WriteDiaryScreen> createState() => _WriteDiaryScreenState();
@@ -21,7 +22,7 @@ class _WriteDiaryScreenState extends ConsumerState<WriteDiaryScreen> {
   final _tagsCtrl = TextEditingController();
   final _dateCtrl = TextEditingController();
   String? _mood;
-  bool _isPublic = false;
+  bool _isPublic = true; // 公开日记默认开启
   bool _isAnalyzing = false;
   String? _aiMessage;
   String? _aiSummary;
@@ -67,11 +68,13 @@ class _WriteDiaryScreenState extends ConsumerState<WriteDiaryScreen> {
     final images = await _picker.pickMultiImage(imageQuality: 80, limit: 9);
     for (final img in images) {
       try {
-        final url = await UploadService().uploadImage(img.path);
+        final url = await UploadService().uploadImage(img);
         if (url.isNotEmpty) {
           setState(() => _imageUrls.add(url));
         }
-      } catch (_) {}
+      } catch (e) {
+        print('UPLOAD ERROR: $e');
+      }
     }
   }
 
@@ -86,7 +89,7 @@ class _WriteDiaryScreenState extends ConsumerState<WriteDiaryScreen> {
           mood: _mood!,
           content: _contentCtrl.text.trim(),
           tags: _tagsCtrl.text.trim(),
-          isPublic: _isPublic,
+          isPublic: widget.isPrivateOnly ? false : _isPublic,
           unlockDate: widget.isCapsule ? _dateCtrl.text : null,
           imageUrls: _imageUrls.isNotEmpty ? _imageUrls : null,
         );
@@ -157,7 +160,7 @@ class _WriteDiaryScreenState extends ConsumerState<WriteDiaryScreen> {
             ),
             const SizedBox(height: 16),
             // Public switch
-            if (!widget.isCapsule)
+            if (!widget.isCapsule && !widget.isPrivateOnly)
               SwitchListTile(
                 title: const Text('公开发布', style: TextStyle(fontSize: 14)),
                 subtitle:

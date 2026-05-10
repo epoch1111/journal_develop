@@ -88,7 +88,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                         onTap: () async {
                           final result = await Navigator.of(context).push(
                             MaterialPageRoute(
-                                builder: (_) => const WriteDiaryScreen()),
+                                builder: (_) => const WriteDiaryScreen(isPrivateOnly: true)),
                           );
                           if (result == true) {
                             ref.read(diaryProvider.notifier).fetchDiaries();

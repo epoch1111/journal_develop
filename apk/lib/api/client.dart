@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:io' show File;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart' as dio;
 
 /// 统一 HTTP 客户端。所有 API 调用都经过这里。
 ///
@@ -92,18 +94,36 @@ class ApiClient {
     return _handleResponse(response);
   }
 
+  /// 上传文件：使用 dio（比 http 库的 MultipartFile 更可靠）。
+  /// 参考 Web 端 fetch + FormData 的上传方式。
   Future<Map<String, dynamic>> uploadFile(String path, String filePath,
-      {String fieldName = 'file'}) async {
-    final uri = Uri.parse('$baseUrl$path');
-    final request = http.MultipartRequest('POST', uri);
-    if (_token != null) {
-      request.headers['Authorization'] = 'Bearer $_token';
+      {String filename = 'image.jpg',
+      String mime = 'image/jpeg',
+      String fieldName = 'file'}) async {
+    final d = dio.Dio();
+    d.options.connectTimeout = const Duration(seconds: 30);
+    d.options.receiveTimeout = const Duration(seconds: 30);
+    d.options.sendTimeout = const Duration(seconds: 60);
+
+    final formData = dio.FormData.fromMap({
+      fieldName: dio.MultipartFile.fromFileSync(filePath,
+          filename: filename, contentType: dio.DioMediaType.parse(mime)),
+    });
+
+    final options = dio.Options(
+      method: 'POST',
+      headers: {
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      },
+    );
+
+    final fullUrl = '$baseUrl$path';
+    final response = await d.post(fullUrl, data: formData, options: options);
+
+    if (response.data is Map) {
+      return response.data as Map<String, dynamic>;
     }
-    request.files
-        .add(await http.MultipartFile.fromPath(fieldName, filePath));
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-    return _handleResponse(response);
+    return {'ok': true};
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
